@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
 import './PhonePeDashboard.css';
@@ -34,7 +34,7 @@ import {
   Loader2,
 } from 'lucide-react';
 
-const STORAGE_KEY = 'securepay_dashboard_state';
+const STORAGE_KEY_PREFIX = 'securepay_dashboard_state_';
 
 const INITIAL_BALANCE = 24580.75;
 const INITIAL_RECEIVER_ACCOUNTS = {
@@ -66,9 +66,9 @@ const INITIAL_TRANSACTIONS = [
   },
 ];
 
-const loadSavedState = () => {
+const loadSavedState = (storageKey) => {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
     if (!raw) return null;
     return JSON.parse(raw);
   } catch (err) {
@@ -79,10 +79,49 @@ const loadSavedState = () => {
 
 export default function PhonePeDashboard() {
   // =============================
+  // =============================
+  // USER IDENTITY
+  // =============================
+
+  let savedUser = {};
+
+  try {
+    savedUser = JSON.parse(
+      localStorage.getItem('paymentUser')
+    ) || {};
+  } catch {
+    savedUser = {};
+  }
+
+  const user = {
+    name: savedUser.name || 'User',
+
+    mobile: savedUser.phone
+      ? `${savedUser.phone.slice(
+          0,
+          2
+        )}******${savedUser.phone.slice(-2)}`
+      : 'Not available',
+
+    email: savedUser.email || 'Not available',
+  };
+
   // STATE
   // =============================
 
-  const savedState = loadSavedState();
+  // Create a unique storage key for each logged-in user
+  const userIdentifier =
+    savedUser.email ||
+    savedUser.phone ||
+    savedUser.name ||
+    'default-user';
+
+  const userStorageId = String(userIdentifier)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '_');
+
+  const STORAGE_KEY = `${STORAGE_KEY_PREFIX}${userStorageId}`;
+  const savedState = loadSavedState(STORAGE_KEY);
 
   const [activeTab, setActiveTab] = useState('home');
   const [showBalance, setShowBalance] = useState(true);
@@ -140,28 +179,7 @@ export default function PhonePeDashboard() {
   // USER
   // =============================
 
-  let savedUser = {};
 
-  try {
-    savedUser = JSON.parse(
-      localStorage.getItem('paymentUser')
-    ) || {};
-  } catch {
-    savedUser = {};
-  }
-
-  const user = {
-    name: savedUser.name || 'User',
-
-    mobile: savedUser.phone
-      ? `${savedUser.phone.slice(
-          0,
-          2
-        )}******${savedUser.phone.slice(-2)}`
-      : 'Not available',
-
-    email: savedUser.email || 'Not available',
-  };
 
   // =============================
   // BANK
@@ -174,7 +192,7 @@ export default function PhonePeDashboard() {
 
   const securityScore = aiAnalysisResult?.securityScore ?? 82;
 
-  const myUpiId = 'sripad@upi';
+  const myUpiId = savedUser.upiId || `${String(userIdentifier).split('@')[0].toLowerCase()}@upi`;
 
   // =============================
   // UPI VALIDATION
@@ -334,7 +352,7 @@ export default function PhonePeDashboard() {
             }));
 
             setScannerMessage(
-              `QR scanned successfully. ${details.name} • ${details.upiId}`
+              `QR scanned successfully. ${details.name} â€¢ ${details.upiId}`
             );
 
             setShowScanner(false);
@@ -410,7 +428,7 @@ export default function PhonePeDashboard() {
 
     if (!Number.isFinite(amount) || amount <= 0) {
       setMessage(
-        'Amount must be greater than ₹0.'
+        'Amount must be greater than â‚¹0.'
       );
       return;
     }
@@ -484,7 +502,7 @@ export default function PhonePeDashboard() {
     });
 
     setMessage(
-      `Payment of ₹${amount.toFixed(
+      `Payment of â‚¹${amount.toFixed(
         2
       )} sent successfully to ${receiver}.`
     );
@@ -746,7 +764,7 @@ export default function PhonePeDashboard() {
 
                 <div className="recent-amount">
                   <strong>
-                    ₹{tx.amount.toFixed(2)}
+                    â‚¹{tx.amount.toFixed(2)}
                   </strong>
 
                   <span
@@ -840,7 +858,7 @@ export default function PhonePeDashboard() {
           Available balance:
 
           <strong>
-            ₹
+            â‚¹
             {balance.toLocaleString(
               'en-IN',
               {
@@ -926,7 +944,7 @@ export default function PhonePeDashboard() {
 
             <div className="history-right">
               <strong>
-                ₹{tx.amount.toFixed(2)}
+                â‚¹{tx.amount.toFixed(2)}
               </strong>
 
               <span
@@ -970,7 +988,7 @@ export default function PhonePeDashboard() {
           <strong>{bank.name}</strong>
 
           <span>
-            Primary Account • {bank.account}
+            Primary Account â€¢ {bank.account}
           </span>
         </div>
 
@@ -978,7 +996,7 @@ export default function PhonePeDashboard() {
           <small>Available</small>
 
           <strong>
-            ₹
+            â‚¹
             {balance.toLocaleString(
               'en-IN',
               {
@@ -1019,8 +1037,8 @@ export default function PhonePeDashboard() {
           ).map(([upi, account]) => (
             <p key={upi}>
               <strong>{upi}</strong>
-              {' — '}
-              ₹
+              {' â€” '}
+              â‚¹
               {account.balance.toLocaleString(
                 'en-IN',
                 {
@@ -1210,8 +1228,8 @@ export default function PhonePeDashboard() {
                 >
                   {security.result ===
                   'Passed'
-                    ? '✓ Security Passed'
-                    : '⚠ Security Warning'}
+                    ? 'âœ“ Security Passed'
+                    : 'âš  Security Warning'}
                 </span>
 
                 <p>{security.issue}</p>
@@ -1219,22 +1237,22 @@ export default function PhonePeDashboard() {
 
               <div className="security-tests-mini">
                 <span>
-                  ✓ Authentication
+                  âœ“ Authentication
                 </span>
 
                 <span>
-                  ✓ Authorization
+                  âœ“ Authorization
                 </span>
 
                 <span>
-                  ✓ Amount Validation
+                  âœ“ Amount Validation
                 </span>
 
                 <span>
                   {security.result ===
                   'Passed'
-                    ? '✓ Replay Protection'
-                    : '⚠ Replay Detection'}
+                    ? 'âœ“ Replay Protection'
+                    : 'âš  Replay Detection'}
                 </span>
               </div>
             </div>
@@ -1307,17 +1325,17 @@ export default function PhonePeDashboard() {
 
             <div className="balance-value">
               {showBalance
-                ? `₹${balance.toLocaleString(
+                ? `â‚¹${balance.toLocaleString(
                     'en-IN',
                     {
                       minimumFractionDigits: 2,
                     }
                   )}`
-                : '••••••••'}
+                : 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢'}
             </div>
 
             <p className="balance-account">
-              {bank.name} • {bank.account}
+              {bank.name} â€¢ {bank.account}
             </p>
           </div>
 
@@ -1564,3 +1582,6 @@ export default function PhonePeDashboard() {
     </div>
   );
 }
+
+
+
