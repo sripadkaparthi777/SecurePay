@@ -1,0 +1,234 @@
+openapi: 3.0.3
+
+info:
+  title: SecurePay API
+  version: 1.0.0
+  description: API definition for SecurePay security testing.
+
+servers:
+  - url: http://localhost:5002
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          example: userA@securepay.local
+        password:
+          type: string
+          format: password
+          example: UserA@123
+
+    PaymentRequest:
+      type: object
+      required:
+        - receiverUpi
+        - amount
+        - idempotencyKey
+      properties:
+        receiverUpi:
+          type: string
+          example: userB@upi
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+          example: 500
+        idempotencyKey:
+          type: string
+          example: TX-001
+        note:
+          type: string
+          example: SecurePay payment
+
+paths:
+
+  /:
+    get:
+      summary: API root
+      responses:
+        '200':
+          description: API information
+
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Healthy
+
+  /api/auth/login:
+    post:
+      summary: Authenticate user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Successful login
+        '401':
+          description: Invalid credentials
+
+  /api/me:
+    get:
+      summary: Current authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Authenticated user
+        '401':
+          description: Authentication required
+
+  /api/accounts/me:
+    get:
+      summary: Current account
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Account information
+        '401':
+          description: Authentication required
+
+  /api/accounts/add-money:
+    post:
+      summary: Add money to account
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: number
+                  format: double
+                  minimum: 0.01
+                  example: 1000
+      responses:
+        '200':
+          description: Money added
+        '400':
+          description: Invalid amount
+        '401':
+          description: Authentication required
+
+  /api/payment/send:
+    post:
+      summary: Send payment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+      responses:
+        '200':
+          description: Payment processed
+        '400':
+          description: Invalid payment
+        '401':
+          description: Authentication required
+        '403':
+          description: Payment blocked
+        '404':
+          description: Receiver not found
+        '429':
+          description: Too many requests
+
+  /api/transactions/me:
+    get:
+      summary: Current user's transactions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User transactions
+        '401':
+          description: Authentication required
+
+  /api/transactions/all:
+    get:
+      summary: All transactions for privileged roles
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All transactions
+        '401':
+          description: Authentication required
+        '403':
+          description: Forbidden
+
+  /api/transactions/{transactionId}:
+    get:
+      summary: Get transaction by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: TX-001
+      responses:
+        '200':
+          description: Transaction
+        '401':
+          description: Authentication required
+        '403':
+          description: Forbidden
+        '404':
+          description: Transaction not found
+
+  /api/audit:
+    get:
+      summary: Security audit records
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Audit records
+        '401':
+          description: Authentication required
+        '403':
+          description: Forbidden
+
+  /api/analyze-security:
+    post:
+      summary: Analyze security data
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Security analysis
+        '401':
+          description: Authentication required

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { GoogleGenAI } from '@google/genai';
 import { config } from '../config/index.js';
 
@@ -5,16 +6,61 @@ const ai = new GoogleGenAI({
   apiKey: config.geminiApiKey,
 });
 
-export async function analyzeSecurity(req, res) {
-  try {
-    const { transaction, apiResponse } = req.body || {};
+function isPlainObject(value) {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value)
+  );
+}
 
-    if (!transaction && !apiResponse) {
+function validateAnalysisInput(body) {
+  if (!isPlainObject(body)) {
+    return 'Request body must be a JSON object.';
+  }
+
+  const { transaction, apiResponse } = body;
+
+  if (typeof transaction === 'undefined' &&
+      typeof apiResponse === 'undefined') {
+    return "Must provide 'transaction' or 'apiResponse'.";
+  }
+
+  if (
+    typeof transaction !== 'undefined' &&
+    !isPlainObject(transaction)
+  ) {
+    return "'transaction' must be a JSON object.";
+  }
+
+  if (
+    typeof apiResponse !== 'undefined' &&
+    !isPlainObject(apiResponse)
+  ) {
+    return "'apiResponse' must be a JSON object.";
+  }
+
+  return null;
+}
+
+export async function analyzeSecurity(req, res) {
+  const errorReference = crypto.randomUUID();
+
+  try {
+    const validationError =
+      validateAnalysisInput(req.body);
+
+    if (validationError) {
       return res.status(400).json({
         success: false,
-        error: "Invalid request payload. Must provide 'transaction' or 'apiResponse'.",
+        error: validationError,
       });
     }
+
+    const {
+      transaction = {},
+      apiResponse = {},
+    } = req.body;
 
     const prompt = `
 You are a payment API security analyzer.
@@ -22,10 +68,10 @@ You are a payment API security analyzer.
 Analyze the following payment transaction and API response.
 
 Transaction:
-${JSON.stringify(transaction ?? {}, null, 2)}
+${JSON.stringify(transaction, null, 2)}
 
 API Response:
-${JSON.stringify(apiResponse ?? {}, null, 2)}
+${JSON.stringify(apiResponse, null, 2)}
 
 Check for:
 1. Authentication problems
@@ -37,19 +83,19 @@ Check for:
 7. Amount manipulation
 8. Other suspicious behavior
 
-You MUST return your analysis strictly as a JSON object matching this schema:
+Return JSON matching:
 {
-  "securityScore": number (0 to 100),
-  "riskLevel": string ("LOW" | "MEDIUM" | "HIGH" | "CRITICAL"),
-  "vulnerabilities": array of objects [
+  "securityScore": number,
+  "riskLevel": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
+  "vulnerabilities": [
     {
       "name": string,
-      "severity": string ("LOW" | "MEDIUM" | "HIGH" | "CRITICAL"),
+      "severity": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
       "description": string
     }
   ],
   "explanation": string,
-  "recommendations": array of strings
+  "recommendations": [string]
 }
 `;
 
@@ -62,14 +108,16 @@ You MUST return your analysis strictly as a JSON object matching this schema:
     });
 
     let structuredAnalysis;
+
     try {
-      structuredAnalysis = JSON.parse(response.text);
-    } catch (parseErr) {
+      structuredAnalysis =
+        JSON.parse(response.text);
+    } catch {
       structuredAnalysis = {
         securityScore: 50,
         riskLevel: 'UNKNOWN',
         vulnerabilities: [],
-        explanation: response.text,
+        explanation: 'Analysis returned a non-JSON response.',
         recommendations: [],
       };
     }
@@ -78,12 +126,18 @@ You MUST return your analysis strictly as a JSON object matching this schema:
       success: true,
       analysis: structuredAnalysis,
     });
-  } catch (error) {
-    console.error('Gemini error:', error.message);
 
-    return res.status(500).json({
+  } catch (error) {
+    console.error(
+      `[AI-SECURITY-ERROR ${errorReference}]`,
+      error?.message || error
+    );
+
+    return res.status(503).json({
       success: false,
-      error: 'Failed to perform security analysis. Please try again.',
+      error:
+        'Security analysis service is temporarily unavailable.',
+      errorReference,
     });
   }
 }

@@ -47,7 +47,36 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
+app.use(express.json({
+  strict: false,
+  limit: '1mb'
+}));
+
+// Convert malformed/unsupported JSON bodies into a client error,
+// instead of exposing them as HTTP 500 application errors.
+app.use((err, req, res, next) => {
+  if (
+    err?.type === 'entity.parse.failed' ||
+    (
+      err instanceof SyntaxError &&
+      err?.status === 400
+    )
+  ) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid JSON request body.'
+    });
+  }
+
+  next(err);
+});
+
+app.disable('x-powered-by');
+
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  next();
+});
 
 // Initialize Database & Seed data
 getDb();
@@ -112,6 +141,9 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 export default app;
+
+
+
 
 
 
