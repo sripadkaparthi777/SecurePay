@@ -70,10 +70,10 @@ export function evaluateSecurityGate({
   // TEMPORARY DEFAULT: If no scans exist, we default to ALLOW.
   // This will be replaced by the real scan engine in later phases.
   try {
-    const latestScan = db.prepare("SELECT status FROM security_scans ORDER BY created_at DESC LIMIT 1").get();
+    const latestScan = db.prepare("SELECT id, status FROM security_scans ORDER BY created_at DESC LIMIT 1").get();
     if (latestScan) {
       scanStatus = latestScan.status;
-      if (["UNAVAILABLE", "TIMEOUT", "CONFLICTING"].includes(scanStatus)) {
+      if (["UNAVAILABLE", "TIMEOUT", "CONFLICTING", "FAILED"].includes(scanStatus)) {
         decision = "BLOCK";
         reasons.push(`Scan Status: ${scanStatus}`);
       }
