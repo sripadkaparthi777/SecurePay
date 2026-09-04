@@ -3,3 +3,11 @@ node_modules/
 dist/
 .env
 .env.*
+
+*.db
+*.sqlite
+*.sqlite3
+
+**/*.backup
+**/*.backup2
+/../payment-security-platform-antigravity-backup/

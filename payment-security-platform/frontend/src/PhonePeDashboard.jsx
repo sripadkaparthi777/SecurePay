@@ -1,6 +1,8 @@
-﻿import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
+import { api } from './services/api';
 import './PhonePeDashboard.css';
 
 import {
@@ -32,96 +34,41 @@ import {
   X,
   AlertTriangle,
   Loader2,
+  LogOut,
 } from 'lucide-react';
 
-const STORAGE_KEY_PREFIX = 'securepay_dashboard_state_';
-
-const INITIAL_BALANCE = 24580.75;
-const INITIAL_RECEIVER_ACCOUNTS = {
-  'rahul@upi': {
-    name: 'Rahul Kumar',
-    balance: 5000,
-  },
-  'sbi@upi': {
-    name: 'SBI Bank',
-    balance: 25000,
-  },
-};
-const INITIAL_TRANSACTIONS = [
-  {
-    id: 'TX-001',
-    receiver: 'Rahul Kumar',
-    receiverUpi: 'rahul@upi',
-    amount: 100,
-    status: 'Completed',
-    date: 'Today, 10:42 AM',
-  },
-  {
-    id: 'TX-002',
-    receiver: 'SBI Bank',
-    receiverUpi: 'sbi@upi',
-    amount: 250.5,
-    status: 'Pending',
-    date: 'Yesterday, 6:15 PM',
-  },
-];
-
-const loadSavedState = (storageKey) => {
-  try {
-    const raw = localStorage.getItem(storageKey);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch (err) {
-    console.warn('Failed to parse saved state from localStorage:', err);
-    return null;
-  }
-};
-
 export default function PhonePeDashboard() {
-  // =============================
-  // =============================
-  // USER IDENTITY
-  // =============================
+  const navigate = useNavigate();
 
+  // USER IDENTITY & SERVER STATE
   let savedUser = {};
-
   try {
-    savedUser = JSON.parse(
-      localStorage.getItem('paymentUser')
-    ) || {};
+    savedUser = JSON.parse(localStorage.getItem('paymentUser')) || {};
   } catch {
     savedUser = {};
   }
 
+  const [currentUser, setCurrentUser] = useState(savedUser);
+  const [balance, setBalance] = useState(0);
+  const [transactions, setTransactions] = useState([]);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+
+  // Add Money Modal State
+  const [showAddMoneyModal, setShowAddMoneyModal] = useState(false);
+  const [addMoneyAmount, setAddMoneyAmount] = useState('1000');
+  const [addMoneyMessage, setAddMoneyMessage] = useState('');
+  const [isAddingMoney, setIsAddingMoney] = useState(false);
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+
   const user = {
-    name: savedUser.name || 'User',
-
-    mobile: savedUser.phone
-      ? `${savedUser.phone.slice(
-          0,
-          2
-        )}******${savedUser.phone.slice(-2)}`
+    name: currentUser.name || savedUser.name || 'User',
+    mobile: currentUser.phone || savedUser.phone
+      ? `${String(currentUser.phone || savedUser.phone).slice(0, 2)}******${String(currentUser.phone || savedUser.phone).slice(-2)}`
       : 'Not available',
+    email: currentUser.email || savedUser.email || 'Not available',
+  };
 
-    email: savedUser.email || 'Not available',
-  };
-
-  // STATE
-  // =============================
-
-  // Create a unique storage key for each logged-in user
-  const userIdentifier =
-    savedUser.email ||
-    savedUser.phone ||
-    savedUser.name ||
-    'default-user';
-
-  const userStorageId = String(userIdentifier)
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]/g, '_');
-
-  const STORAGE_KEY = `${STORAGE_KEY_PREFIX}${userStorageId}`;
-  const savedState = loadSavedState(STORAGE_KEY);
+  const myUpiId = currentUser.upiId || savedUser.upiId || 'userA@upi';
 
   const [activeTab, setActiveTab] = useState('home');
   const [showBalance, setShowBalance] = useState(true);
@@ -137,53 +84,46 @@ export default function PhonePeDashboard() {
 
   const [message, setMessage] = useState('');
 
-  const [balance, setBalance] = useState(() => {
-    return typeof savedState?.balance === 'number'
-      ? savedState.balance
-      : INITIAL_BALANCE;
-  });
+  // Load authoritative data from backend server
+  const loadServerData = async () => {
+    setIsLoadingData(true);
+    try {
+      // Fetch authenticated user profile
+      const meRes = await api.getMe();
+      if (meRes?.user) {
+        setCurrentUser(meRes.user);
+      }
 
-  const [receiverAccounts, setReceiverAccounts] = useState(() => {
-    return savedState?.receiverAccounts || INITIAL_RECEIVER_ACCOUNTS;
-  });
+      // Fetch server-side balance
+      const accRes = await api.getMyAccount();
+      if (accRes?.account) {
+        setBalance(accRes.account.balance);
+      }
+
+      // Fetch server-side transaction history
+      const txRes = await api.getMyTransactions();
+      if (txRes?.transactions) {
+        setTransactions(txRes.transactions);
+      }
+    } catch (err) {
+      console.warn('Backend connection error or unauthorized:', err);
+      // If unauthorized, redirect to login
+      if (err.response?.status === 401) {
+        navigate('/');
+      }
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+
+  useEffect(() => {
+    loadServerData();
+  }, []);
 
   // AI Security Analysis State
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiAnalysisError, setAiAnalysisError] = useState(null);
   const [aiAnalysisResult, setAiAnalysisResult] = useState(null);
-
-  // =============================
-  // TRANSACTIONS
-  // =============================
-
-  const [transactions, setTransactions] = useState(() => {
-    return Array.isArray(savedState?.transactions)
-      ? savedState.transactions
-      : INITIAL_TRANSACTIONS;
-  });
-
-  useEffect(() => {
-    try {
-      const payload = {
-        balance,
-        transactions,
-        receiverAccounts,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    } catch (err) {
-      console.warn('Failed to save state to localStorage:', err);
-    }
-  }, [balance, transactions, receiverAccounts]);
-
-  // =============================
-  // USER
-  // =============================
-
-
-
-  // =============================
-  // BANK
-  // =============================
 
   const bank = {
     name: 'State Bank of India',
@@ -191,8 +131,6 @@ export default function PhonePeDashboard() {
   };
 
   const securityScore = aiAnalysisResult?.securityScore ?? 82;
-
-  const myUpiId = savedUser.upiId || `${String(userIdentifier).split('@')[0].toLowerCase()}@upi`;
 
   // =============================
   // UPI VALIDATION
@@ -214,32 +152,10 @@ export default function PhonePeDashboard() {
     setAiAnalysisError(null);
 
     try {
-      const res = await fetch('http://localhost:5002/api/analyze-security', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          transaction: tx,
-          apiResponse: apiResponsePayload,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error(`Server returned status code ${res.status}`);
-      }
-
-      const data = await res.json();
+      const data = await api.analyzeSecurity(tx, apiResponsePayload);
 
       if (data && data.success && data.analysis) {
         setAiAnalysisResult(data.analysis);
-
-        // Attach analysis to transaction in state
-        setTransactions((prev) =>
-          prev.map((t) =>
-            t.id === tx.id ? { ...t, securityAnalysis: data.analysis } : t
-          )
-        );
       } else {
         throw new Error('Invalid analysis response format received.');
       }
@@ -390,32 +306,19 @@ export default function PhonePeDashboard() {
   // PAYMENT
   // =============================
 
-  const handlePayment = (e) => {
+  const handlePayment = async (e) => {
     e.preventDefault();
-
     setMessage('');
 
-    const receiver = form.receiver.trim();
+    const receiverUpi = form.receiver.trim();
 
-    if (!receiver) {
+    if (!receiverUpi) {
       setMessage('Please enter a UPI ID.');
       return;
     }
 
-    if (!isValidUpi(receiver)) {
-      setMessage(
-        'Invalid UPI ID. Example: rahul@upi'
-      );
-      return;
-    }
-
-    if (
-      receiver.toLowerCase() ===
-      myUpiId.toLowerCase()
-    ) {
-      setMessage(
-        'You cannot make a payment to your own UPI ID.'
-      );
+    if (!isValidUpi(receiverUpi)) {
+      setMessage('Invalid UPI ID. Example: userB@upi');
       return;
     }
 
@@ -425,94 +328,75 @@ export default function PhonePeDashboard() {
     }
 
     const amount = Number(form.amount);
-
     if (!Number.isFinite(amount) || amount <= 0) {
-      setMessage(
-        'Amount must be greater than â‚¹0.'
-      );
+      setMessage('Amount must be greater than ₹0.');
       return;
     }
 
-    if (amount > 10000000) {
-      setMessage(
-        'Security warning: unusually large amount detected.'
-      );
+    setIsSubmittingPayment(true);
+
+    try {
+      const idempotencyKey = `idemp-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const res = await api.sendPayment({
+        receiverUpi,
+        amount,
+        idempotencyKey,
+      });
+
+      if (res && res.success) {
+        setBalance(res.balance);
+        setForm({ receiver: '', amount: '' });
+        setMessage(res.message || `Payment of ₹${amount.toFixed(2)} sent successfully.`);
+
+        // Refresh transactions from server
+        const txRes = await api.getMyTransactions();
+        if (txRes?.transactions) {
+          setTransactions(txRes.transactions);
+        }
+
+        // Run AI Security Analysis asynchronously
+        analyzeTransactionSecurity(res.transaction, {
+          statusCode: 200,
+          statusMessage: 'Payment Processed Successfully',
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (err) {
+      console.error('Payment error:', err);
+      const errMsg = err.response?.data?.error || 'Payment processing failed.';
+      setMessage(errMsg);
+    } finally {
+      setIsSubmittingPayment(false);
+    }
+  };
+
+  const handleAddMoney = async (e) => {
+    e?.preventDefault();
+    setAddMoneyMessage('');
+    const amt = Number(addMoneyAmount);
+
+    if (!amt || !Number.isFinite(amt) || amt <= 0) {
+      setAddMoneyMessage('Please enter a valid amount greater than ₹0.');
       return;
     }
 
-    if (amount > balance) {
-      setMessage(
-        'Insufficient bank balance.'
-      );
-      return;
+    setIsAddingMoney(true);
+    try {
+      const res = await api.addMoney(amt);
+      if (res && res.success) {
+        setBalance(res.balance);
+        setAddMoneyMessage(`₹${amt.toFixed(2)} added successfully!`);
+        setTimeout(() => {
+          setShowAddMoneyModal(false);
+          setAddMoneyMessage('');
+        }, 1200);
+      }
+    } catch (err) {
+      const errMsg = err.response?.data?.error || 'Failed to add money.';
+      setAddMoneyMessage(errMsg);
+    } finally {
+      setIsAddingMoney(false);
     }
-
-    const normalizedUpi =
-      receiver.toLowerCase();
-
-    let receiverName = receiver;
-
-    if (receiverAccounts[normalizedUpi]) {
-      receiverName =
-        receiverAccounts[normalizedUpi].name;
-
-      setReceiverAccounts((prev) => ({
-        ...prev,
-
-        [normalizedUpi]: {
-          ...prev[normalizedUpi],
-          balance:
-            prev[normalizedUpi].balance +
-            amount,
-        },
-      }));
-    } else {
-      setReceiverAccounts((prev) => ({
-        ...prev,
-
-        [normalizedUpi]: {
-          name: receiver.split('@')[0],
-          balance: amount,
-        },
-      }));
-    }
-
-    setBalance((prev) => prev - amount);
-
-    const newTransaction = {
-      id: `TX-${String(
-        transactions.length + 1
-      ).padStart(3, '0')}`,
-
-      receiver: receiverName,
-      receiverUpi: receiver,
-      amount,
-      status: 'Completed',
-      date: 'Just now',
-    };
-
-    setTransactions((prev) => [
-      newTransaction,
-      ...prev,
-    ]);
-
-    setForm({
-      receiver: '',
-      amount: '',
-    });
-
-    setMessage(
-      `Payment of â‚¹${amount.toFixed(
-        2
-      )} sent successfully to ${receiver}.`
-    );
-
-    // Analyze transaction via AI Backend
-    analyzeTransactionSecurity(newTransaction, {
-      statusCode: 200,
-      statusMessage: 'Payment Processed Successfully',
-      timestamp: new Date().toISOString(),
-    });
   };
 
   // =============================
@@ -649,7 +533,7 @@ export default function PhonePeDashboard() {
           <span>Fast and secure payments</span>
         </div>
 
-        <button type="button">
+        <button type="button" onClick={() => setShowAddMoneyModal(true)}>
           Add Money
         </button>
       </section>
@@ -763,8 +647,8 @@ export default function PhonePeDashboard() {
                 </div>
 
                 <div className="recent-amount">
-                  <strong>
-                    â‚¹{tx.amount.toFixed(2)}
+                  <strong style={{ color: tx.type === 'RECEIVED' ? '#16a34a' : 'inherit' }}>
+                    {tx.type === 'RECEIVED' ? '+' : '-'}₹{tx.amount.toFixed(2)}
                   </strong>
 
                   <span
@@ -943,8 +827,8 @@ export default function PhonePeDashboard() {
             </div>
 
             <div className="history-right">
-              <strong>
-                â‚¹{tx.amount.toFixed(2)}
+              <strong style={{ color: tx.type === 'RECEIVED' ? '#16a34a' : 'inherit' }}>
+                {tx.type === 'RECEIVED' ? '+' : '-'}₹{tx.amount.toFixed(2)}
               </strong>
 
               <span
@@ -1029,24 +913,18 @@ export default function PhonePeDashboard() {
 
         <div>
           <strong>
-            Dummy Receiver Accounts
+            Server-Side Shared Ledger
           </strong>
 
-          {Object.entries(
-            receiverAccounts
-          ).map(([upi, account]) => (
-            <p key={upi}>
-              <strong>{upi}</strong>
-              {' â€” '}
-              â‚¹
-              {account.balance.toLocaleString(
-                'en-IN',
-                {
-                  minimumFractionDigits: 2,
-                }
-              )}
-            </p>
-          ))}
+          <p>
+            Current Account: <strong>{myUpiId}</strong>
+          </p>
+          <p>
+            Server Balance: <strong>₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+          </p>
+          <p style={{ fontSize: '13px', color: '#64748b' }}>
+            Persisted in server-side SQLite database. Shared across all browsers and users.
+          </p>
         </div>
       </div>
     </section>
@@ -1304,12 +1182,15 @@ export default function PhonePeDashboard() {
             <QrCode size={21} />
           </button>
 
-          <button type="button">
-            <Bell size={21} />
-          </button>
-
-          <button type="button">
-            <HelpCircle size={21} />
+          <button
+            type="button"
+            onClick={() => {
+              api.logout();
+              navigate('/');
+            }}
+            title="Switch Account / Logout"
+          >
+            <LogOut size={21} />
           </button>
         </div>
       </header>
@@ -1575,6 +1456,110 @@ export default function PhonePeDashboard() {
             >
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ADD MONEY MODAL */}
+
+      {showAddMoneyModal && (
+        <div
+          className="qr-modal-overlay"
+          onClick={() => setShowAddMoneyModal(false)}
+        >
+          <div
+            className="qr-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '380px' }}
+          >
+            <button
+              type="button"
+              className="qr-close"
+              onClick={() => setShowAddMoneyModal(false)}
+            >
+              <X size={20} />
+            </button>
+
+            <h2>Add Money</h2>
+            <p>Simulated deposit to your server balance</p>
+
+            <form
+              onSubmit={handleAddMoney}
+              style={{
+                marginTop: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '8px',
+                  justifyContent: 'center',
+                }}
+              >
+                {['500', '1000', '2000', '5000'].map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setAddMoneyAmount(val)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      border:
+                        addMoneyAmount === val
+                          ? '2px solid #5f259f'
+                          : '1px solid #e2e8f0',
+                      background:
+                        addMoneyAmount === val ? '#f3e8ff' : '#f8fafc',
+                      color: '#1e293b',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    ₹{val}
+                  </button>
+                ))}
+              </div>
+
+              <div className="amount-input" style={{ margin: '8px 0' }}>
+                <IndianRupee size={20} />
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={addMoneyAmount}
+                  onChange={(e) => setAddMoneyAmount(e.target.value)}
+                  placeholder="Enter amount"
+                  required
+                />
+              </div>
+
+              {addMoneyMessage && (
+                <div
+                  style={{
+                    fontSize: '13px',
+                    color: addMoneyMessage.includes('added')
+                      ? '#16a34a'
+                      : '#dc2626',
+                    textAlign: 'center',
+                  }}
+                >
+                  {addMoneyMessage}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="send-payment-button"
+                disabled={isAddingMoney}
+              >
+                {isAddingMoney
+                  ? 'Adding Funds...'
+                  : `Add ₹${Number(addMoneyAmount || 0)}`}
+              </button>
+            </form>
           </div>
         </div>
       )}

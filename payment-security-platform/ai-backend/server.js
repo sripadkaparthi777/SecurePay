@@ -1,117 +1,78 @@
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-import { GoogleGenAI } from "@google/genai";
+import express from 'express';
+import cors from 'cors';
+import { config } from './config/index.js';
+import { getDb } from './database/db.js';
 
-dotenv.config();
+import authRoutes from './routes/authRoutes.js';
+import accountRoutes from './routes/accountRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
+import transactionRoutes from './routes/transactionRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
+import auditRoutes from './routes/auditRoutes.js';
+import rateLimitTestRoutes from './routes/rateLimitTestRoutes.js';
+import { authenticate } from './middleware/authMiddleware.js';
+import { getMe } from './controllers/authController.js';
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
+// Initialize Database & Seed data
+getDb();
 
-app.get("/", (req, res) => {
+// General / Health Endpoints
+app.get('/', (req, res) => {
   res.json({
-    message: "SecurePay AI Backend is running",
+    name: 'SecurePay API Security Testing Platform',
+    version: '1.0.0',
+    status: 'running',
   });
 });
 
-app.get("/health", (req, res) => {
+app.get('/health', (req, res) => {
   res.json({
-    status: "OK",
+    status: 'OK',
     timestamp: new Date().toISOString(),
   });
 });
 
-app.post("/api/analyze-security", async (req, res) => {
-  try {
-    const { transaction, apiResponse } = req.body || {};
+// Direct specification requirement: GET /api/me
+app.get('/api/me', authenticate, getMe);
 
-    if (!transaction && !apiResponse) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid request payload. Must provide 'transaction' or 'apiResponse'.",
-      });
-    }
+// Mount Modular Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/accounts', accountRoutes);
+app.use('/api/payment', paymentRoutes);
+app.use('/api/transactions', transactionRoutes);
+app.use('/api/audit', auditRoutes);
+app.use('/api/test', rateLimitTestRoutes);
+app.use('/api', aiRoutes); // Contains /api/analyze-security
 
-    const prompt = `
-You are a payment API security analyzer.
+// 404 handler for unmatched routes
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: `Endpoint ${req.method} ${req.originalUrl} not found.`,
+  });
+});
 
-Analyze the following payment transaction and API response.
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error('Unhandled server error:', err);
+  res.status(500).json({
+    success: false,
+    error: 'Internal server error.',
+  });
+});
 
-Transaction:
-${JSON.stringify(transaction ?? {}, null, 2)}
+const PORT = config.port;
 
-API Response:
-${JSON.stringify(apiResponse ?? {}, null, 2)}
-
-Check for:
-1. Authentication problems
-2. Authorization / BOLA / IDOR
-3. Input validation problems
-4. Excessive data exposure
-5. Rate limiting issues
-6. Replay attack possibilities
-7. Amount manipulation
-8. Other suspicious behavior
-
-You MUST return your analysis strictly as a JSON object matching this schema:
-{
-  "securityScore": number (0 to 100),
-  "riskLevel": string ("LOW" | "MEDIUM" | "HIGH" | "CRITICAL"),
-  "vulnerabilities": array of objects [
-    {
-      "name": string,
-      "severity": string ("LOW" | "MEDIUM" | "HIGH" | "CRITICAL"),
-      "description": string
-    }
-  ],
-  "explanation": string,
-  "recommendations": array of strings
+// Only listen if not imported by test runner
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`SecurePay Backend running on http://localhost:${PORT}`);
+  });
 }
-`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-      },
-    });
-
-    let structuredAnalysis;
-    try {
-      structuredAnalysis = JSON.parse(response.text);
-    } catch (parseErr) {
-      structuredAnalysis = {
-        securityScore: 50,
-        riskLevel: "UNKNOWN",
-        vulnerabilities: [],
-        explanation: response.text,
-        recommendations: [],
-      };
-    }
-
-    res.json({
-      success: true,
-      analysis: structuredAnalysis,
-    });
-  } catch (error) {
-    console.error("Gemini error:", error.message);
-
-    res.status(500).json({
-      success: false,
-      error: "Failed to perform security analysis. Please try again.",
-    });
-  }
-});
-
-const PORT = 5002;
-
-app.listen(PORT, () => {
-  console.log(`SecurePay AI Backend running on http://localhost:${PORT}`);
-});
+export default app;

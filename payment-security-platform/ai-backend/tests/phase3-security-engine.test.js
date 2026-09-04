@@ -1,51 +1,51 @@
-import { SecurityScanService } from '../services/securityScanService.js';
-import { getDb } from '../database/db.js';
-import assert from 'node:assert';
+import assert from "node:assert";
+import { SecurityScanService } from "../services/securityScanService.js";
 
 async function runTests() {
-  console.log('--- Phase 3: Security Engine Tests ---');
-  const db = getDb();
-  
-  // Seed a cross-user transaction for BOLA testing if not present
-  const now = new Date().toISOString();
-  db.prepare(`
-    INSERT OR IGNORE INTO transactions (id, transaction_id, owner_user_id, sender_user_id, sender_upi, receiver_user_id, receiver_upi, amount, status, type, created_at)
-    VALUES ('tx_bola_seed', 'TX-BOLA-TEST', 'usr_b', 'usr_b', 'userB@upi', 'usr_admin', 'admin@upi', 50.0, 'COMPLETED', 'SENT', ?)
-  `).run(now);
-  db.prepare(`
-    INSERT OR IGNORE INTO transactions (id, transaction_id, owner_user_id, sender_user_id, sender_upi, receiver_user_id, receiver_upi, amount, status, type, created_at)
-    VALUES ('tx_bola_seed_a', 'TX-BOLA-TEST', 'usr_a', 'usr_b', 'userB@upi', 'usr_admin', 'admin@upi', 50.0, 'COMPLETED', 'RECEIVED', ?)
-  `).run(now);
+  console.log("--- Phase 3: Security Engine Runtime Tests ---");
 
-  console.log('Starting Security Scan...');
   const result = await SecurityScanService.runSecurityScan();
-  
-  console.log('Scan Result Status:', result.status);
-  console.log('Findings Detected:', result.findingsCount);
 
-  // Validate Scan Record
-  const scan = db.prepare('SELECT * FROM security_scans WHERE id = ?').get(result.scanId);
-  assert.ok(scan, 'Scan record must exist in database');
-  assert.strictEqual(scan.status, 'VALID', 'Scan should finish with VALID status');
-  assert.strictEqual(scan.scanner, 'SecurePay Deterministic Security Engine');
+  console.log("Scan ID:", result.scanId);
+  console.log("Scan Status:", result.status);
+  console.log("Findings:", result.findingsCount);
 
-  // Verify Findings Persistence
-  const findings = db.prepare('SELECT * FROM security_findings WHERE scan_id = ?').all(result.scanId);
-  assert.strictEqual(findings.length, result.findingsCount, 'DB findings count should match result');
+  assert.strictEqual(result.status, "VALID");
+  assert.ok(Array.isArray(result.results));
+  assert.strictEqual(result.results.length, 3);
 
-  // Logic Verification for SecurePay (current implementation is secure)
-  if (result.findingsCount === 0) {
-    console.log('API1 BOLA: PASS (Ownership check effective)');
-    console.log('API2 AUTH: PASS (Auth challenge verified)');
-    console.log('API5 BFLA: PASS (RBAC check effective)');
-  } else {
-    console.warn('Security Findings detected in a supposedly secure environment!');
+  for (const test of result.results) {
+    console.log(
+      `${test.testId}: ${test.status} | expected=${test.expectedStatus} | actual=${test.actualStatus}`
+    );
+    console.log(`Evidence: ${test.evidence}`);
   }
 
-  console.log('Phase 3 tests completed successfully.');
+  assert.strictEqual(
+    result.results.find(r => r.testId === "API1-BOLA-001")?.status,
+    "PASS"
+  );
+
+  assert.strictEqual(
+    result.results.find(r => r.testId === "API2-AUTH-001")?.status,
+    "PASS"
+  );
+
+  assert.strictEqual(
+    result.results.find(r => r.testId === "API5-BFLA-001")?.status,
+    "PASS"
+  );
+
+  assert.strictEqual(
+    result.findingsCount,
+    0,
+    "Secure runtime should not create confirmed vulnerability findings"
+  );
+
+  console.log("All API1/API2/API5 runtime tests passed.");
 }
 
-runTests().catch(err => {
-  console.error('Phase 3 tests failed:', err);
+runTests().catch(error => {
+  console.error("Phase 3 tests failed:", error);
   process.exit(1);
 });

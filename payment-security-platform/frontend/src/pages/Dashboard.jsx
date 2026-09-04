@@ -1,10 +1,8 @@
-﻿
 import React, { useEffect, useState } from 'react';
 import StatCard from '../components/StatCard';
 import SecurityScore from '../components/SecurityScore';
 import TransactionTable from '../components/TransactionTable';
-
-const STORAGE_KEY = 'securepay_dashboard_state';
+import { api } from '../services/api';
 
 export default function Dashboard() {
   const [mode, setMode] = useState('USER');
@@ -15,75 +13,35 @@ export default function Dashboard() {
   // LOAD TRANSACTIONS
   // =============================
   useEffect(() => {
-    const loadTransactions = () => {
+    const loadTransactions = async () => {
       try {
-        const savedState = localStorage.getItem(STORAGE_KEY);
-
-        if (savedState) {
-          const parsedState = JSON.parse(savedState);
-
-          if (Array.isArray(parsedState.transactions)) {
-            setTransactions(parsedState.transactions);
-
-            // Keep selected transaction updated
-            setSelectedTransaction((current) => {
-              if (!current) return null;
-
-              return (
-                parsedState.transactions.find(
-                  (tx) => tx.id === current.id
-                ) || current
-              );
-            });
-          } else {
-            setTransactions([]);
+        let txList = [];
+        try {
+          const allRes = await api.getAllTransactions();
+          if (Array.isArray(allRes?.transactions)) {
+            txList = allRes.transactions;
           }
-        } else {
-          setTransactions([]);
+        } catch {
+          const myRes = await api.getMyTransactions();
+          if (Array.isArray(myRes?.transactions)) {
+            txList = myRes.transactions;
+          }
         }
-      } catch (error) {
-        console.error(
-          'Failed to load payment transactions:',
-          error
-        );
 
+        setTransactions(txList);
+
+        setSelectedTransaction((current) => {
+          if (!current && txList.length > 0) return txList[0];
+          if (!current) return null;
+          return txList.find((tx) => tx.id === current.id) || current;
+        });
+      } catch (error) {
+        console.error('Failed to load server transactions:', error);
         setTransactions([]);
       }
     };
 
     loadTransactions();
-
-    // Storage event for changes from other tabs
-    const handleStorageChange = () => {
-      loadTransactions();
-    };
-
-    window.addEventListener(
-      'storage',
-      handleStorageChange
-    );
-
-    // Custom event for changes in the same tab
-    const handleSecurePayUpdate = () => {
-      loadTransactions();
-    };
-
-    window.addEventListener(
-      'securepay-state-updated',
-      handleSecurePayUpdate
-    );
-
-    return () => {
-      window.removeEventListener(
-        'storage',
-        handleStorageChange
-      );
-
-      window.removeEventListener(
-        'securepay-state-updated',
-        handleSecurePayUpdate
-      );
-    };
   }, []);
 
   // =============================
@@ -338,7 +296,8 @@ export default function Dashboard() {
 
                   <strong>
                     {selectedTransaction.sender ||
-                      'sripad@upi'}
+                      selectedTransaction.senderUpi ||
+                      'userA@upi'}
                   </strong>
 
                 </div>

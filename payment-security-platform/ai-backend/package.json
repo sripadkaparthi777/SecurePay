@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node tests/phase1-runner.js",
     "start": "node server.js"
   },
   "keywords": [],
@@ -13,8 +13,10 @@
   "type": "module",
   "dependencies": {
     "@google/genai": "^2.19.0",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3"
   }
 }
