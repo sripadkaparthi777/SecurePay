@@ -12,6 +12,10 @@ async function runTests() {
     INSERT OR IGNORE INTO transactions (id, transaction_id, owner_user_id, sender_user_id, sender_upi, receiver_user_id, receiver_upi, amount, status, type, created_at)
     VALUES ('tx_bola_seed', 'TX-BOLA-TEST', 'usr_b', 'usr_b', 'userB@upi', 'usr_admin', 'admin@upi', 50.0, 'COMPLETED', 'SENT', ?)
   `).run(now);
+  db.prepare(`
+    INSERT OR IGNORE INTO transactions (id, transaction_id, owner_user_id, sender_user_id, sender_upi, receiver_user_id, receiver_upi, amount, status, type, created_at)
+    VALUES ('tx_bola_seed_a', 'TX-BOLA-TEST', 'usr_a', 'usr_b', 'userB@upi', 'usr_admin', 'admin@upi', 50.0, 'COMPLETED', 'RECEIVED', ?)
+  `).run(now);
 
   console.log('Starting Security Scan...');
   const result = await SecurityScanService.runSecurityScan();
