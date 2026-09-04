@@ -71,9 +71,46 @@ export function initSchema(db) {
       authenticated_user_id TEXT,
       endpoint TEXT NOT NULL,
       decision TEXT NOT NULL,
-      reason TEXT NOT NULL
+      reason TEXT NOT NULL,
+      security_score REAL,
+      findings TEXT,
+      scan_id TEXT,
+      policy_version TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS security_findings (
+      id TEXT PRIMARY KEY,
+      owasp_category TEXT,
+      title TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      status TEXT NOT NULL,
+      endpoint TEXT,
+      method TEXT,
+      description TEXT,
+      evidence TEXT,
+      recommendation TEXT,
+      payment_critical INTEGER DEFAULT 0,
+      scan_id TEXT,
+      created_at TEXT NOT NULL
     );
   `);
+
+  // Safe Migrations for existing audit_logs table
+  const tableInfo = db.prepare("PRAGMA table_info(audit_logs)").all();
+  const columns = tableInfo.map(c => c.name);
+
+  if (!columns.includes('security_score')) {
+    db.exec("ALTER TABLE audit_logs ADD COLUMN security_score REAL;");
+  }
+  if (!columns.includes('findings')) {
+    db.exec("ALTER TABLE audit_logs ADD COLUMN findings TEXT;");
+  }
+  if (!columns.includes('scan_id')) {
+    db.exec("ALTER TABLE audit_logs ADD COLUMN scan_id TEXT;");
+  }
+  if (!columns.includes('policy_version')) {
+    db.exec("ALTER TABLE audit_logs ADD COLUMN policy_version TEXT;");
+  }
 }
 
 export function seedDemoUsers(db) {
