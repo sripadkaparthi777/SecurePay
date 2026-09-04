@@ -1,1 +1,5 @@
 .aider*
+
+payment-security-platform/ai-backend/*.backup.js
+
+payment-security-platform/ai-backend/*.before-api1-api10.js
