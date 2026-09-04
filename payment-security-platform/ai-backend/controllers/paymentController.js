@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { getDb } from '../database/db.js';
 import { logAudit } from '../services/auditService.js';
+import { evaluateSecurityGate } from '../services/securityGateService.js';
 
 export function sendPayment(req, res) {
   const endpoint = '/api/payment/send';
@@ -61,7 +62,37 @@ export function sendPayment(req, res) {
 
     const db = getDb();
 
-    // 5. Check Idempotency / Duplicate submission
+    // 5. SECURITY GATE (Phase 2)
+    const securityGate = evaluateSecurityGate({
+      authenticatedUserId,
+      senderUpi,
+      receiverUpi,
+      amount,
+      idempotencyKey
+    });
+
+    if (securityGate.decision === 'BLOCK') {
+      logAudit({
+        authenticatedUserId,
+        endpoint,
+        decision: 'BLOCK',
+        reason: securityGate.reasons.join(', '),
+        score: securityGate.score,
+        findings: securityGate.findings,
+        policyVersion: securityGate.policyVersion
+      });
+
+      return res.status(403).json({
+        success: false,
+        decision: 'BLOCK',
+        error: 'Payment blocked by security policy.',
+        reason: securityGate.reasons[0],
+        securityScore: securityGate.score,
+        findings: securityGate.findings
+      });
+    }
+
+    // 6. Check Idempotency / Duplicate submission
     if (idempotencyKey && typeof idempotencyKey === 'string' && idempotencyKey.trim() !== '') {
       const existingSentTx = db.prepare(`
         SELECT transaction_id, sender_user_id, sender_upi, receiver_user_id, receiver_upi, 
@@ -239,8 +270,11 @@ export function sendPayment(req, res) {
       transactionId: txId,
       authenticatedUserId,
       endpoint,
-      decision: 'COMPLETED',
+      decision: 'ALLOW',
       reason: 'Payment settled successfully',
+      score: securityGate.score,
+      findings: securityGate.findings,
+      policyVersion: securityGate.policyVersion
     });
 
     // 10. Fetch updated sender balance
@@ -265,6 +299,8 @@ export function sendPayment(req, res) {
 
     return res.json({
       success: true,
+      decision: 'ALLOW',
+      securityScore: securityGate.score,
       message: `Payment of ₹${numericAmount.toFixed(2)} sent successfully to ${receiverAccount.receiver_name} (${receiverAccount.upi_id}).`,
       transaction: transactionRecord,
       balance: updatedSenderAccount.balance,

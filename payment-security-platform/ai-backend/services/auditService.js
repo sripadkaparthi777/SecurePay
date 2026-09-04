@@ -7,17 +7,23 @@ export function logAudit({
   endpoint,
   decision,
   reason,
+  score = null,
+  findings = [],
+  scanId = null,
+  policyVersion = "1.0.0"
 }) {
   try {
     const db = getDb();
     const id = `aud_${crypto.randomUUID()}`;
     const auditId = `AUD-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const timestamp = new Date().toISOString();
+    const findingsStr = JSON.stringify(findings);
 
     const insert = db.prepare(`
       INSERT INTO audit_logs (
-        id, audit_id, transaction_id, timestamp, authenticated_user_id, endpoint, decision, reason
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        id, audit_id, transaction_id, timestamp, authenticated_user_id, endpoint, 
+        decision, reason, security_score, findings, scan_id, policy_version
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     insert.run(
@@ -28,7 +34,11 @@ export function logAudit({
       authenticatedUserId,
       endpoint,
       decision,
-      reason
+      reason,
+      score,
+      findingsStr,
+      scanId,
+      policyVersion
     );
 
     return { id, auditId, timestamp };
