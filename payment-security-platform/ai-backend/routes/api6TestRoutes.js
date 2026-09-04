@@ -1,17 +1,20 @@
 import express from 'express';
-import { sendPayment } from '../controllers/paymentController.js';
 import { authenticate } from '../middleware/authMiddleware.js';
-import { paymentRateLimit } from '../middleware/paymentRateLimit.js';
 import { sensitivePaymentFlowLimit } from '../middleware/sensitivePaymentFlowLimit.js';
 
 const router = express.Router();
 
-router.post(
-  '/send',
+router.get(
+  '/sensitive-flow-test',
   authenticate,
-  paymentRateLimit,
   sensitivePaymentFlowLimit,
-  sendPayment
+  (req, res) => {
+    res.json({
+      success: true,
+      message: 'Sensitive business flow request accepted.',
+      securityCategory: 'API6'
+    });
+  }
 );
 
 export default router;
