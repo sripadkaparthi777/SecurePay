@@ -115,7 +115,6 @@ export function sendPayment(req, res) {
       });
     }
 
-    // 7. Check Idempotency / Duplicate submission
     if (idempotencyKey && typeof idempotencyKey === 'string' && idempotencyKey.trim() !== '') {
       const existingSentTx = db.prepare(`
         SELECT transaction_id, sender_user_id, sender_upi, receiver_user_id, receiver_upi, 
