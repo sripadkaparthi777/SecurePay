@@ -9,6 +9,10 @@ import paymentRoutes from './routes/paymentRoutes.js';
 import transactionRoutes from './routes/transactionRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
 import auditRoutes from './routes/auditRoutes.js';
+import api7TestRoutes from './routes/api7TestRoutes.js';
+import api9TestRoutes from './routes/api9TestRoutes.js';
+import api10TestRoutes from './routes/api10TestRoutes.js';
+import api8TestRoutes from './routes/api8TestRoutes.js';
 import api6TestRoutes from './routes/api6TestRoutes.js';
 import rateLimitTestRoutes from './routes/rateLimitTestRoutes.js';
 import { authenticate } from './middleware/authMiddleware.js';
@@ -49,6 +53,10 @@ app.use('/api/transactions', transactionRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/test', rateLimitTestRoutes);
 app.use('/api/api6-test', api6TestRoutes);
+app.use('/api/security-test/api7', api7TestRoutes);
+app.use('/api/security-test/api8', api8TestRoutes);
+app.use('/api/security-test/api9', api9TestRoutes);
+app.use('/api/security-test/api10', api10TestRoutes);
 app.use('/api', aiRoutes); // Contains /api/analyze-security
 
 // 404 handler for unmatched routes
@@ -78,4 +86,8 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 export default app;
+
+
+
+
 
