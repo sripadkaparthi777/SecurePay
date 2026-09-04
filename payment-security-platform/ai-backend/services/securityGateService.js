@@ -67,14 +67,23 @@ export function evaluateSecurityGate({
   }
 
   // 4. Mock Scan Status Logic (for Demo/Phase 2)
-  // In a real scenario, this would check a 'scans' table
-  const latestScan = db.prepare("SELECT status FROM security_scans ORDER BY created_at DESC LIMIT 1").get();
-  if (latestScan) {
-    scanStatus = latestScan.status;
-    if (["UNAVAILABLE", "TIMEOUT", "CONFLICTING"].includes(scanStatus)) {
-      decision = "BLOCK";
-      reasons.push(`Scan Status: ${scanStatus}`);
+  // TEMPORARY DEFAULT: If no scans exist, we default to ALLOW.
+  // This will be replaced by the real scan engine in later phases.
+  try {
+    const latestScan = db.prepare("SELECT status FROM security_scans ORDER BY created_at DESC LIMIT 1").get();
+    if (latestScan) {
+      scanStatus = latestScan.status;
+      if (["UNAVAILABLE", "TIMEOUT", "CONFLICTING"].includes(scanStatus)) {
+        decision = "BLOCK";
+        reasons.push(`Scan Status: ${scanStatus}`);
+      }
+    } else {
+      // Default state when no scans have been run yet
+      scanStatus = "VALID";
     }
+  } catch (e) {
+    console.warn("Security Gate: security_scans table check failed, using default VALID status.");
+    scanStatus = "VALID";
   }
 
   score = Math.max(0, Math.min(100, score));

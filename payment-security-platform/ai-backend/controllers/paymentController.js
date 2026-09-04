@@ -62,37 +62,60 @@ export function sendPayment(req, res) {
 
     const db = getDb();
 
-    // 5. SECURITY GATE (Phase 2)
-    const securityGate = evaluateSecurityGate({
-      authenticatedUserId,
-      senderUpi,
-      receiverUpi,
-      amount,
-      idempotencyKey
-    });
+    // 5. Find receiver account
+    const receiverAccount = db.prepare(`
+      SELECT a.id as account_id, a.user_id, a.upi_id, u.name as receiver_name 
+      FROM accounts a
+      JOIN users u ON u.id = a.user_id
+      WHERE LOWER(a.upi_id) = ?
+    `).get(cleanReceiverUpi);
 
-    if (securityGate.decision === 'BLOCK') {
+    if (!receiverAccount) {
       logAudit({
         authenticatedUserId,
         endpoint,
-        decision: 'BLOCK',
-        reason: securityGate.reasons.join(', '),
-        score: securityGate.score,
-        findings: securityGate.findings,
-        policyVersion: securityGate.policyVersion
+        decision: 'REJECTED',
+        reason: `Receiver UPI not found: ${cleanReceiverUpi}`,
       });
-
-      return res.status(403).json({
+      return res.status(404).json({
         success: false,
-        decision: 'BLOCK',
-        error: 'Payment blocked by security policy.',
-        reason: securityGate.reasons[0],
-        securityScore: securityGate.score,
-        findings: securityGate.findings
+        error: 'Receiver UPI ID not found in system.',
       });
     }
 
-    // 6. Check Idempotency / Duplicate submission
+    // Double check that receiver is not the same user ID
+    if (receiverAccount.user_id === senderUserId) {
+      logAudit({
+        authenticatedUserId,
+        endpoint,
+        decision: 'REJECTED',
+        reason: 'Self-payment attempt via alternate alias',
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'You cannot make a payment to your own UPI ID.',
+      });
+    }
+
+    // 6. Check Sender Balance
+    const senderAccount = db.prepare(`
+      SELECT id, balance FROM accounts WHERE user_id = ?
+    `).get(senderUserId);
+
+    if (!senderAccount || senderAccount.balance < numericAmount) {
+      logAudit({
+        authenticatedUserId,
+        endpoint,
+        decision: 'REJECTED',
+        reason: 'Insufficient balance',
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Insufficient balance',
+      });
+    }
+
+    // 7. Check Idempotency / Duplicate submission
     if (idempotencyKey && typeof idempotencyKey === 'string' && idempotencyKey.trim() !== '') {
       const existingSentTx = db.prepare(`
         SELECT transaction_id, sender_user_id, sender_upi, receiver_user_id, receiver_upi, 
@@ -136,61 +159,38 @@ export function sendPayment(req, res) {
       }
     }
 
-    // 6. Find receiver account
-    const receiverAccount = db.prepare(`
-      SELECT a.id as account_id, a.user_id, a.upi_id, u.name as receiver_name 
-      FROM accounts a
-      JOIN users u ON u.id = a.user_id
-      WHERE LOWER(a.upi_id) = ?
-    `).get(cleanReceiverUpi);
 
-    if (!receiverAccount) {
+    // 8. SECURITY GATE (Phase 2) - Evaluated after business validation
+    const securityGate = evaluateSecurityGate({
+      authenticatedUserId,
+      senderUpi,
+      receiverUpi,
+      amount,
+      idempotencyKey
+    });
+
+    if (securityGate.decision === 'BLOCK') {
       logAudit({
         authenticatedUserId,
         endpoint,
-        decision: 'REJECTED',
-        reason: `Receiver UPI not found: ${cleanReceiverUpi}`,
+        decision: 'BLOCK',
+        reason: securityGate.reasons.join(', '),
+        score: securityGate.score,
+        findings: securityGate.findings,
+        policyVersion: securityGate.policyVersion
       });
-      return res.status(404).json({
+
+      return res.status(403).json({
         success: false,
-        error: 'Receiver UPI ID not found in system.',
+        decision: 'BLOCK',
+        error: 'Payment blocked by security policy.',
+        reason: securityGate.reasons[0],
+        securityScore: securityGate.score,
+        findings: securityGate.findings
       });
     }
 
-    // Double check that receiver is not the same user ID
-    if (receiverAccount.user_id === senderUserId) {
-      logAudit({
-        authenticatedUserId,
-        endpoint,
-        decision: 'REJECTED',
-        reason: 'Self-payment attempt via alternate alias',
-      });
-      return res.status(400).json({
-        success: false,
-        error: 'You cannot make a payment to your own UPI ID.',
-      });
-    }
-
-    // 7. Check Sender Balance
-    const senderAccount = db.prepare(`
-      SELECT id, balance FROM accounts WHERE user_id = ?
-    `).get(senderUserId);
-
-    if (!senderAccount || senderAccount.balance < numericAmount) {
-      logAudit({
-        authenticatedUserId,
-        endpoint,
-        decision: 'REJECTED',
-        reason: 'Insufficient balance',
-      });
-      // Do not expose extra details
-      return res.status(400).json({
-        success: false,
-        error: 'Insufficient balance',
-      });
-    }
-
-    // 8. Atomic Settlement
+    // 9. Atomic Settlement
     const txId = `TX-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
     const now = new Date().toISOString();
     const cleanIdempotencyKey = idempotencyKey ? String(idempotencyKey).trim() : null;

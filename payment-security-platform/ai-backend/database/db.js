@@ -93,6 +93,17 @@ export function initSchema(db) {
       scan_id TEXT,
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS security_scans (
+      id TEXT PRIMARY KEY,
+      scan_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      scanner TEXT,
+      scanner_version TEXT,
+      started_at TEXT,
+      completed_at TEXT,
+      created_at TEXT NOT NULL
+    );
   `);
 
   // Safe Migrations for existing audit_logs table
