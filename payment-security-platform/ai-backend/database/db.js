@@ -1,0 +1,151 @@
+import { DatabaseSync } from 'node:sqlite';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { config } from '../config/index.js';
+import { hashPassword } from '../services/cryptoService.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Ensure database directory exists
+const dbDir = path.dirname(config.dbPath);
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+
+let dbInstance = null;
+
+export function getDb() {
+  if (!dbInstance) {
+    dbInstance = new DatabaseSync(config.dbPath);
+    initSchema(dbInstance);
+    seedDemoUsers(dbInstance);
+  }
+  return dbInstance;
+}
+
+export function initSchema(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      upi_id TEXT UNIQUE NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS accounts (
+      id TEXT PRIMARY KEY,
+      user_id TEXT UNIQUE NOT NULL,
+      upi_id TEXT UNIQUE NOT NULL,
+      balance REAL NOT NULL DEFAULT 0.0,
+      currency TEXT NOT NULL DEFAULT 'INR',
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS transactions (
+      id TEXT PRIMARY KEY,
+      transaction_id TEXT NOT NULL,
+      owner_user_id TEXT NOT NULL,
+      sender_user_id TEXT NOT NULL,
+      sender_upi TEXT NOT NULL,
+      receiver_user_id TEXT NOT NULL,
+      receiver_upi TEXT NOT NULL,
+      amount REAL NOT NULL,
+      status TEXT NOT NULL,
+      type TEXT NOT NULL,
+      idempotency_key TEXT,
+      created_at TEXT NOT NULL,
+      note TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id TEXT PRIMARY KEY,
+      audit_id TEXT NOT NULL,
+      transaction_id TEXT,
+      timestamp TEXT NOT NULL,
+      authenticated_user_id TEXT,
+      endpoint TEXT NOT NULL,
+      decision TEXT NOT NULL,
+      reason TEXT NOT NULL
+    );
+  `);
+}
+
+export function seedDemoUsers(db) {
+  const existingUsers = db.prepare('SELECT COUNT(*) as count FROM users').get();
+  if (existingUsers && existingUsers.count > 0) {
+    return; // Already seeded
+  }
+
+  const demoUsers = [
+    {
+      id: 'usr_admin',
+      email: 'admin@securepay.local',
+      name: 'System Admin',
+      role: 'ADMIN',
+      password: 'Admin@123',
+      upi: 'admin@upi',
+      initialBalance: 100000.0,
+    },
+    {
+      id: 'usr_reviewer',
+      email: 'reviewer@securepay.local',
+      name: 'Security Reviewer',
+      role: 'SECURITY_REVIEWER',
+      password: 'Reviewer@123',
+      upi: 'reviewer@upi',
+      initialBalance: 50000.0,
+    },
+    {
+      id: 'usr_a',
+      email: 'userA@securepay.local',
+      name: 'User A',
+      role: 'USER',
+      password: 'UserA@123',
+      upi: 'userA@upi',
+      initialBalance: 0.0,
+    },
+    {
+      id: 'usr_b',
+      email: 'userB@securepay.local',
+      name: 'User B',
+      role: 'USER',
+      password: 'UserB@123',
+      upi: 'userB@upi',
+      initialBalance: 0.0,
+    },
+  ];
+
+  const insertUser = db.prepare(`
+    INSERT INTO users (id, email, name, role, password_hash, upi_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertAccount = db.prepare(`
+    INSERT INTO accounts (id, user_id, upi_id, balance, currency, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+
+  const now = new Date().toISOString();
+
+  for (const u of demoUsers) {
+    const passwordHash = hashPassword(u.password);
+    insertUser.run(u.id, u.email, u.name, u.role, passwordHash, u.upi, now);
+    insertAccount.run(`acc_${u.id}`, u.id, u.upi, u.initialBalance, 'INR', now);
+  }
+}
+
+export function resetDatabase(db) {
+  db.exec(`
+    DELETE FROM audit_logs;
+    DELETE FROM transactions;
+    DELETE FROM accounts;
+    DELETE FROM users;
+  `);
+  seedDemoUsers(db);
+}
