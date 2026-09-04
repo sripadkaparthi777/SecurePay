@@ -20,33 +20,7 @@ import { getMe } from './controllers/authController.js';
 
 const app = express();
 
-const allowedOrigins = (
-  process.env.ALLOWED_ORIGINS ||
-  'http://localhost:5173'
-)
-  .split(',')
-  .map(origin => origin.trim())
-  .filter(Boolean);
-
-app.use(
-  cors({
-    origin(origin, callback) {
-      // Allow non-browser/server-to-server requests.
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      return callback(
-        new Error('CORS origin not allowed.')
-      );
-    },
-    credentials: true,
-  })
-);
+app.use(cors());
 app.use(express.json());
 
 // Initialize Database & Seed data
@@ -112,7 +86,6 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 export default app;
-
 
 
 

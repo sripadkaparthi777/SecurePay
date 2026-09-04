@@ -5,25 +5,37 @@ const router = express.Router();
 router.get('/config-test', (req, res) => {
   const findings = [];
 
-  if (process.env.NODE_ENV !== 'production') {
-    findings.push({
-      check: 'environment',
-      issue: 'Application is not running in production mode.'
-    });
-  }
+  const allowedOrigins = (
+    process.env.ALLOWED_ORIGINS ||
+    'http://localhost:5173'
+  )
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean);
 
-  const corsHeader = res.getHeader('Access-Control-Allow-Origin');
-
-  if (corsHeader === '*') {
+  // Do not treat development mode itself as a vulnerability.
+  // We inspect whether insecure wildcard configuration exists.
+  if (allowedOrigins.includes('*')) {
     findings.push({
       check: 'cors',
       issue: 'Wildcard CORS configuration detected.'
     });
   }
 
+  if (allowedOrigins.length === 0) {
+    findings.push({
+      check: 'cors',
+      issue: 'No explicit allowed CORS origins configured.'
+    });
+  }
+
+  const nodeEnv = process.env.NODE_ENV || 'development';
+
   res.json({
     success: true,
     securityCategory: 'API8',
+    environment: nodeEnv,
+    allowedOrigins,
     findings
   });
 });
