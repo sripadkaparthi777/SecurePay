@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { api } from './services/api';
 import './PhonePeDashboard.css';
+import { formatINR } from './utils/formatCurrency';
 
 import {
   QrCode,
@@ -59,6 +60,8 @@ export default function PhonePeDashboard() {
   const [addMoneyMessage, setAddMoneyMessage] = useState('');
   const [isAddingMoney, setIsAddingMoney] = useState(false);
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+
+  const [paymentResult, setPaymentResult] = useState(null);
 
   const user = {
     name: currentUser.name || savedUser.name || 'User',
@@ -268,7 +271,7 @@ export default function PhonePeDashboard() {
             }));
 
             setScannerMessage(
-              `QR scanned successfully. ${details.name} â€¢ ${details.upiId}`
+              `QR scanned successfully. ${details.name} | ${details.upiId}`
             );
 
             setShowScanner(false);
@@ -329,7 +332,7 @@ export default function PhonePeDashboard() {
 
     const amount = Number(form.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
-      setMessage('Amount must be greater than ₹0.');
+      setMessage('Amount must be greater than \u20B90.');
       return;
     }
 
@@ -343,29 +346,61 @@ export default function PhonePeDashboard() {
         idempotencyKey,
       });
 
-      if (res && res.success) {
-        setBalance(res.balance);
-        setForm({ receiver: '', amount: '' });
-        setMessage(res.message || `Payment of ₹${amount.toFixed(2)} sent successfully.`);
+     if (res && res.success) {
+  setBalance(res.balance);
+  setForm({ receiver: '', amount: '' });
+  setMessage('');
 
-        // Refresh transactions from server
-        const txRes = await api.getMyTransactions();
-        if (txRes?.transactions) {
-          setTransactions(txRes.transactions);
-        }
+  setPaymentResult({
+    type: 'success',
+    amount,
+    receiver: receiverUpi,
+    transactionId:
+      res.transaction?.transactionId ||
+      res.transaction?.id ||
+      'N/A',
+  });
 
-        // Run AI Security Analysis asynchronously
-        analyzeTransactionSecurity(res.transaction, {
-          statusCode: 200,
-          statusMessage: 'Payment Processed Successfully',
-          timestamp: new Date().toISOString(),
-        });
-      }
+  if (navigator.vibrate) {
+    navigator.vibrate([120, 60, 120]);
+  }
+
+  const txRes = await api.getMyTransactions();
+
+  if (txRes?.transactions) {
+    setTransactions(txRes.transactions);
+  }
+
+  await analyzeTransactionSecurity(
+    res.transaction,
+    {
+      statusCode: 200,
+      statusMessage: 'Payment Processed Successfully',
+      timestamp: new Date().toISOString(),
+    }
+  );
+}
     } catch (err) {
-      console.error('Payment error:', err);
-      const errMsg = err.response?.data?.error || 'Payment processing failed.';
-      setMessage(errMsg);
-    } finally {
+  console.error('Payment error:', err);
+
+  const errMsg =
+    err.response?.data?.error ||
+    'Payment processing failed.';
+
+  setMessage('');
+
+  setPaymentResult({
+    type: 'error',
+    amount,
+    receiver: receiverUpi,
+    transactionId: null,
+    error: errMsg,
+  });
+
+  if (navigator.vibrate) {
+    navigator.vibrate([200, 80, 200]);
+  }
+} finally {
       setIsSubmittingPayment(false);
     }
   };
@@ -376,7 +411,7 @@ export default function PhonePeDashboard() {
     const amt = Number(addMoneyAmount);
 
     if (!amt || !Number.isFinite(amt) || amt <= 0) {
-      setAddMoneyMessage('Please enter a valid amount greater than ₹0.');
+      setAddMoneyMessage('Please enter a valid amount greater than \u20B90.');
       return;
     }
 
@@ -385,7 +420,7 @@ export default function PhonePeDashboard() {
       const res = await api.addMoney(amt);
       if (res && res.success) {
         setBalance(res.balance);
-        setAddMoneyMessage(`₹${amt.toFixed(2)} added successfully!`);
+        setAddMoneyMessage(`\u20B9${amt.toFixed(2)} added successfully!`);
         setTimeout(() => {
           setShowAddMoneyModal(false);
           setAddMoneyMessage('');
@@ -648,7 +683,7 @@ export default function PhonePeDashboard() {
 
                 <div className="recent-amount">
                   <strong style={{ color: tx.type === 'RECEIVED' ? '#16a34a' : 'inherit' }}>
-                    {tx.type === 'RECEIVED' ? '+' : '-'}₹{tx.amount.toFixed(2)}
+                    {tx.type === 'RECEIVED' ? '+' : '-'}{formatINR(tx.amount)}
                   </strong>
 
                   <span
@@ -742,7 +777,7 @@ export default function PhonePeDashboard() {
           Available balance:
 
           <strong>
-            â‚¹
+            {'\u20B9'}
             {balance.toLocaleString(
               'en-IN',
               {
@@ -828,7 +863,7 @@ export default function PhonePeDashboard() {
 
             <div className="history-right">
               <strong style={{ color: tx.type === 'RECEIVED' ? '#16a34a' : 'inherit' }}>
-                {tx.type === 'RECEIVED' ? '+' : '-'}₹{tx.amount.toFixed(2)}
+                {tx.type === 'RECEIVED' ? '+' : '-'}\u20B9{tx.amount.toFixed(2)}
               </strong>
 
               <span
@@ -872,7 +907,7 @@ export default function PhonePeDashboard() {
           <strong>{bank.name}</strong>
 
           <span>
-            Primary Account â€¢ {bank.account}
+            Primary Account | {bank.account}
           </span>
         </div>
 
@@ -880,7 +915,7 @@ export default function PhonePeDashboard() {
           <small>Available</small>
 
           <strong>
-            â‚¹
+            {'\u20B9'}
             {balance.toLocaleString(
               'en-IN',
               {
@@ -920,7 +955,7 @@ export default function PhonePeDashboard() {
             Current Account: <strong>{myUpiId}</strong>
           </p>
           <p>
-            Server Balance: <strong>₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+            Server Balance: <strong>\u20B9{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
           </p>
           <p style={{ fontSize: '13px', color: '#64748b' }}>
             Persisted in server-side SQLite database. Shared across all browsers and users.
@@ -1106,8 +1141,8 @@ export default function PhonePeDashboard() {
                 >
                   {security.result ===
                   'Passed'
-                    ? 'âœ“ Security Passed'
-                    : 'âš  Security Warning'}
+                    ? 'Security Passed'
+                    : 'Security Warning'}
                 </span>
 
                 <p>{security.issue}</p>
@@ -1115,22 +1150,22 @@ export default function PhonePeDashboard() {
 
               <div className="security-tests-mini">
                 <span>
-                  âœ“ Authentication
+                  Authentication
                 </span>
 
                 <span>
-                  âœ“ Authorization
+                  Authorization
                 </span>
 
                 <span>
-                  âœ“ Amount Validation
+                  Amount Validation
                 </span>
 
                 <span>
                   {security.result ===
                   'Passed'
-                    ? 'âœ“ Replay Protection'
-                    : 'âš  Replay Detection'}
+                    ? 'Replay Protection'
+                    : 'Replay Detection'}
                 </span>
               </div>
             </div>
@@ -1206,17 +1241,17 @@ export default function PhonePeDashboard() {
 
             <div className="balance-value">
               {showBalance
-                ? `â‚¹${balance.toLocaleString(
+                ? `\u20B9${balance.toLocaleString(
                     'en-IN',
                     {
                       minimumFractionDigits: 2,
                     }
                   )}`
-                : 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢'}
+                : '••••••••'}
             </div>
 
             <p className="balance-account">
-              {bank.name} â€¢ {bank.account}
+              {bank.name} | {bank.account}
             </p>
           </div>
 
@@ -1518,7 +1553,7 @@ export default function PhonePeDashboard() {
                       cursor: 'pointer',
                     }}
                   >
-                    ₹{val}
+                    \u20B9{val}
                   </button>
                 ))}
               </div>
@@ -1557,12 +1592,72 @@ export default function PhonePeDashboard() {
               >
                 {isAddingMoney
                   ? 'Adding Funds...'
-                  : `Add ₹${Number(addMoneyAmount || 0)}`}
+                  : `Add \u20B9${Number(addMoneyAmount || 0)}`}
               </button>
             </form>
           </div>
         </div>
       )}
+      {paymentResult && (
+  <div
+    className={`payment-result-overlay ${
+      paymentResult.type === 'success'
+        ? 'payment-success'
+        : 'payment-failure'
+    }`}
+  >
+    <div className="payment-result-card">
+
+      <div className="payment-result-icon">
+        {paymentResult.type === 'success'
+          ? '✓'
+          : '✕'}
+      </div>
+
+      <h1>
+        {paymentResult.type === 'success'
+          ? 'Payment Successful'
+          : 'Payment Failed'}
+      </h1>
+
+      <div className="payment-result-amount">
+        {new Intl.NumberFormat('en-IN', {
+          style: 'currency',
+          currency: 'INR',
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(
+          Number(paymentResult.amount || 0)
+        )}
+      </div>
+
+      {paymentResult.type === 'success' ? (
+        <>
+          <p>
+            Sent to {paymentResult.receiver}
+          </p>
+
+          <small>
+            Transaction ID:{' '}
+            {paymentResult.transactionId}
+          </small>
+        </>
+      ) : (
+        <p>
+          {paymentResult.error}
+        </p>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setPaymentResult(null)}
+      >
+        Continue
+      </button>
+
+    </div>
+  </div>
+)}
 
     </div>
   );

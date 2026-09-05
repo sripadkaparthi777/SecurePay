@@ -269,3 +269,145 @@ body:has(.phonepe-app) {
   .quick-actions { grid-template-columns: repeat(2,1fr); }
   .phonepe-bottom-nav { width: calc(100% - 16px); }
 }
+/* =========================================================
+   PAYMENT SUCCESS / FAILURE SCREEN
+   ========================================================= */
+
+.payment-result-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 24px;
+
+  animation: paymentOverlayIn 0.25s ease-out;
+}
+
+.payment-success {
+  background: rgba(0, 170, 80, 0.97);
+}
+
+.payment-failure {
+  background: rgba(210, 35, 55, 0.97);
+}
+
+.payment-result-card {
+  width: min(440px, 92vw);
+
+  padding: 42px 28px;
+
+  text-align: center;
+
+  color: white;
+
+  border-radius: 28px;
+
+  background: rgba(0, 0, 0, 0.18);
+
+  backdrop-filter: blur(14px);
+
+  animation: paymentCardIn 0.35s ease-out;
+}
+
+.payment-result-icon {
+  width: 110px;
+  height: 110px;
+
+  margin: 0 auto 24px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 4px solid white;
+  border-radius: 50%;
+
+  font-size: 64px;
+  font-weight: 800;
+
+  animation: paymentIconPulse 0.7s ease-out;
+}
+
+.payment-result-card h1 {
+  margin: 0 0 18px;
+
+  font-size: 32px;
+  font-weight: 800;
+}
+
+.payment-result-amount {
+  margin-bottom: 12px;
+
+  font-size: 42px;
+  font-weight: 800;
+}
+
+.payment-result-card p {
+  margin: 8px 0;
+
+  font-size: 18px;
+}
+
+.payment-result-card small {
+  display: block;
+
+  margin-top: 12px;
+
+  opacity: 0.9;
+}
+
+.payment-result-card button {
+  margin-top: 28px;
+
+  padding: 13px 32px;
+
+  border: none;
+  border-radius: 999px;
+
+  background: white;
+
+  font-size: 16px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+@keyframes paymentOverlayIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes paymentCardIn {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes paymentIconPulse {
+  0% {
+    transform: scale(0.35);
+  }
+
+  70% {
+    transform: scale(1.12);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
