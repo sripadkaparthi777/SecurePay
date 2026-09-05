@@ -92,6 +92,11 @@ export const api = {
     return res.data;
   },
 
+  // Security Scan
+  async runSecurityScan() {
+    const res = await apiClient.post('/security-scan');
+    return res.data;
+  },
   // AI Security Analysis
   async analyzeSecurity(transaction, apiResponse) {
     const res = await apiClient.post('/analyze-security', {
@@ -103,3 +108,4 @@ export const api = {
 };
 
 export default apiClient;
+
