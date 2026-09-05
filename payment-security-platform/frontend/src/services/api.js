@@ -105,7 +105,22 @@ export const api = {
     });
     return res.data;
   },
+
+  // Security Incidents
+  async getSecurityIncidents() {
+    const res = await apiClient.get('/security-incidents');
+    return res.data;
+  },
+
+  async getSecurityIncidentById(incidentId) {
+    const res = await apiClient.get(`/security-incidents/${incidentId}`);
+    return res.data;
+  },
+
+  async updateSecurityIncidentStatus(incidentId, status) {
+    const res = await apiClient.patch(`/security-incidents/${incidentId}/status`, { status });
+    return res.data;
+  },
 };
 
 export default apiClient;
-
