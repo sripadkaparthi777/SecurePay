@@ -895,7 +895,7 @@ export default function PhonePeDashboard() {
 
             <div className="history-right">
               <strong style={{ color: tx.type === 'RECEIVED' ? '#16a34a' : 'inherit' }}>
-                {tx.type === 'RECEIVED' ? '+' : '-'}₹{Number(tx.amount || 0).toFixed(2)}
+                {tx.type === 'RECEIVED' ? '+' : '-'}{formatINR(tx.amount)}
               </strong>
 
               <span className={statusClass(tx.status)}>
