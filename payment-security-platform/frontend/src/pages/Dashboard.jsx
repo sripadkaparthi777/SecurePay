@@ -150,7 +150,7 @@ export default function Dashboard() {
             <h2>Recent Security Scans</h2>
 
             <p>
-              /api/auth/login — 2 issues found
+              /api/auth/login - 2 issues
             </p>
           </section>
 
@@ -205,7 +205,7 @@ export default function Dashboard() {
               <button
                 onClick={() => setMode('USER')}
               >
-                ← Back to User Mode
+                Security monitoring active
               </button>
 
             </div>
@@ -325,7 +325,7 @@ export default function Dashboard() {
                   </span>
 
                   <strong>
-                    ₹
+                    \u20B9
                     {Number(
                       selectedTransaction.amount || 0
                     ).toFixed(2)}
