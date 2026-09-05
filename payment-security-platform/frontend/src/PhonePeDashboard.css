@@ -102,6 +102,38 @@ body:has(.phonepe-app) {
 .quick-icon { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 14px; color: var(--pp-purple); background: #f2e9fb; }
 .quick-action span { font-size: 12px; font-weight: 700; text-align: center; }
 
+.transfer-mode-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  background: #f1ecf7;
+  padding: 4px;
+  border-radius: 12px;
+}
+
+.transfer-mode-selector .mode-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--pp-muted);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.transfer-mode-selector .mode-tab.active {
+  background: white;
+  color: var(--pp-purple);
+  box-shadow: 0 2px 8px rgba(95, 37, 159, 0.12);
+}
+
 .security-card {
   display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px;
   padding: 17px 19px; margin-bottom: 18px; border: 1px solid #dfece6; border-radius: 17px;
@@ -269,6 +301,7 @@ body:has(.phonepe-app) {
   .quick-actions { grid-template-columns: repeat(2,1fr); }
   .phonepe-bottom-nav { width: calc(100% - 16px); }
 }
+
 /* =========================================================
    PAYMENT SUCCESS / FAILURE SCREEN
    ========================================================= */
