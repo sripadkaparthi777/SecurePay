@@ -325,9 +325,12 @@ export default function PhonePeDashboard() {
 
   const [gateProcessing, setGateProcessing] = useState(null);
 
+  const [gateStages, setGateStages] = useState([]);
+
   const handlePayment = async (e) => {
     e.preventDefault();
     setMessage('');
+    setGateStages([]);
 
     const receiverUpi = paymentMode === 'TO_SELF' ? myUpiId : form.receiver.trim();
 
@@ -353,9 +356,14 @@ export default function PhonePeDashboard() {
     }
 
     setIsSubmittingPayment(true);
-    setGateProcessing('Analyzing Security Gate...');
+    setGateProcessing('Initiating Secure Transaction...');
+    setGateStages(['Auth Check', 'Balance Check']);
 
     try {
+      // Simulate visual progress of the real gate
+      await new Promise(r => setTimeout(r, 600));
+      setGateStages(prev => [...prev, 'Risk Analysis']);
+      setGateProcessing('Evaluating Security Gate...');
       const idempotencyKey = `idemp-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
       const res = await api.sendPayment({
         receiverUpi,
@@ -365,6 +373,7 @@ export default function PhonePeDashboard() {
       });
 
       setGateProcessing('APPROVED');
+      setGateStages(prev => [...prev, 'Gate Passed']);
 
       if (res && res.success) {
         setBalance(res.balance);
@@ -770,9 +779,16 @@ export default function PhonePeDashboard() {
 
         {gateProcessing && (
           <div className="security-gate-animation">
-            <div className={`gate-status ${gateProcessing === 'BLOCKED' ? 'blocked' : 'analyzing'}`}>
+            <div className={`gate-status ${gateProcessing === 'BLOCKED' ? 'blocked' : gateProcessing === 'APPROVED' ? 'approved' : 'analyzing'}`}>
               <Shield size={16} /> {gateProcessing}
             </div>
+            {gateStages.length > 0 && (
+              <div className="gate-stages">
+                {gateStages.map((s, i) => (
+                  <span key={i} className="gate-stage-tag">{s}</span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
