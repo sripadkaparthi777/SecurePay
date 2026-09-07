@@ -410,6 +410,7 @@ export class SecurityScanService {
   static async testAPI3({
     userAToken,
   }) {
+    resetPaymentRateLimitForTests();
     const response = await httpRequest(
       '/api/payment/send',
       {
@@ -588,6 +589,7 @@ export class SecurityScanService {
   static async testAPI6({
     userAToken,
   }) {
+    resetPaymentRateLimitForTests();
     const statuses = [];
 
     for (let i = 1; i <= 6; i++) {
