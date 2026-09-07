@@ -346,7 +346,7 @@ export default function PhonePeDashboard() {
 
     const amount = Number(form.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
-      setMessage('Amount must be greater than ₹0.');
+      setMessage('Amount must be greater than Γé╣0.');
       return;
     }
 
@@ -426,7 +426,7 @@ export default function PhonePeDashboard() {
     const amt = Number(addMoneyAmount);
 
     if (!amt || !Number.isFinite(amt) || amt <= 0) {
-      setAddMoneyMessage('Please enter a valid amount greater than ₹0.');
+      setAddMoneyMessage('Please enter a valid amount greater than Γé╣0.');
       return;
     }
 
@@ -435,7 +435,7 @@ export default function PhonePeDashboard() {
       const res = await api.addMoney(amt);
       if (res && res.success) {
         setBalance(res.balance);
-        setAddMoneyMessage(`₹${amt.toFixed(2)} added successfully!`);
+        setAddMoneyMessage(`Γé╣${amt.toFixed(2)} added successfully!`);
         setTimeout(() => {
           setShowAddMoneyModal(false);
           setAddMoneyMessage('');
@@ -819,7 +819,7 @@ export default function PhonePeDashboard() {
           Available balance:
 
           <strong>
-            ₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            Γé╣{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </strong>
         </div>
 
@@ -943,7 +943,7 @@ export default function PhonePeDashboard() {
           <small>Available</small>
 
           <strong>
-            ₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            Γé╣{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </strong>
         </div>
       </div>
@@ -977,7 +977,7 @@ export default function PhonePeDashboard() {
             Current Account: <strong>{myUpiId}</strong>
           </p>
           <p>
-            Server Balance: <strong>₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+            Server Balance: <strong>Γé╣{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
           </p>
           <p style={{ fontSize: '13px', color: '#64748b' }}>
             Persisted in server-side SQLite database. Shared across all browsers and users.
@@ -1259,13 +1259,13 @@ export default function PhonePeDashboard() {
 
             <div className="balance-value">
               {showBalance
-                ? `₹${balance.toLocaleString(
+                ? `Γé╣${balance.toLocaleString(
                     'en-IN',
                     {
                       minimumFractionDigits: 2,
                     }
                   )}`
-                : '••••••••'}
+                : 'ΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇó'}
             </div>
 
             <p className="balance-account">
@@ -1571,7 +1571,7 @@ export default function PhonePeDashboard() {
                       cursor: 'pointer',
                     }}
                   >
-                    ₹{val}
+                    Γé╣{val}
                   </button>
                 ))}
               </div>
@@ -1610,7 +1610,7 @@ export default function PhonePeDashboard() {
               >
                 {isAddingMoney
                   ? 'Adding Funds...'
-                  : `Add ₹${Number(addMoneyAmount || 0)}`}
+                  : `Add Γé╣${Number(addMoneyAmount || 0)}`}
               </button>
             </form>
           </div>
@@ -1628,8 +1628,8 @@ export default function PhonePeDashboard() {
 
             <div className="payment-result-icon">
               {paymentResult.type === 'success'
-                ? '✓'
-                : '✕'}
+                ? 'Γ£ô'
+                : 'Γ£ò'}
             </div>
 
             <h1>
