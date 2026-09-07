@@ -130,8 +130,9 @@ export function initSchema(db) {
   const userColumns = userTableInfo.map(c => c.name);
 
   if (!userColumns.includes('phone')) {
-    db.exec("ALTER TABLE users ADD COLUMN phone TEXT UNIQUE;");
+    db.exec("ALTER TABLE users ADD COLUMN phone TEXT;");
   }
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone);");
 
   if (!columns.includes('security_score')) {
     db.exec("ALTER TABLE audit_logs ADD COLUMN security_score REAL;");
