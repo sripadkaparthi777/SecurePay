@@ -62,13 +62,13 @@ export function sendPayment(req, res) {
 
     const db = getDb();
 
-    // 5. Find receiver account
+    // 5. Find receiver account (supports UPI ID or Phone)
     const receiverAccount = db.prepare(`
       SELECT a.id as account_id, a.user_id, a.upi_id, u.name as receiver_name 
       FROM accounts a
       JOIN users u ON u.id = a.user_id
-      WHERE LOWER(a.upi_id) = ?
-    `).get(cleanReceiverUpi);
+      WHERE LOWER(a.upi_id) = ? OR u.phone = ?
+    `).get(cleanReceiverUpi, cleanReceiverUpi);
 
     if (!receiverAccount) {
       logAudit({

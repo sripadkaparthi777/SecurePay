@@ -30,6 +30,7 @@ export function initSchema(db) {
       id TEXT PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
+      phone TEXT UNIQUE,
       role TEXT NOT NULL,
       password_hash TEXT NOT NULL,
       upi_id TEXT UNIQUE NOT NULL,
@@ -125,6 +126,13 @@ export function initSchema(db) {
   const tableInfo = db.prepare("PRAGMA table_info(audit_logs)").all();
   const columns = tableInfo.map(c => c.name);
 
+  const userTableInfo = db.prepare("PRAGMA table_info(users)").all();
+  const userColumns = userTableInfo.map(c => c.name);
+
+  if (!userColumns.includes('phone')) {
+    db.exec("ALTER TABLE users ADD COLUMN phone TEXT UNIQUE;");
+  }
+
   if (!columns.includes('security_score')) {
     db.exec("ALTER TABLE audit_logs ADD COLUMN security_score REAL;");
   }
@@ -169,6 +177,7 @@ export function seedDemoUsers(db) {
       id: 'usr_a',
       email: 'userA@securepay.local',
       name: 'User A',
+      phone: '9876543210',
       role: 'USER',
       password: 'UserA@123',
       upi: 'userA@upi',
@@ -178,6 +187,7 @@ export function seedDemoUsers(db) {
       id: 'usr_b',
       email: 'userB@securepay.local',
       name: 'User B',
+      phone: '8765432109',
       role: 'USER',
       password: 'UserB@123',
       upi: 'userB@upi',
@@ -186,8 +196,8 @@ export function seedDemoUsers(db) {
   ];
 
   const insertUser = db.prepare(`
-    INSERT INTO users (id, email, name, role, password_hash, upi_id, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (id, email, name, phone, role, password_hash, upi_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertAccount = db.prepare(`
@@ -204,6 +214,7 @@ export function seedDemoUsers(db) {
       u.id,
       u.email,
       u.name,
+      u.phone || null,
       u.role,
       passwordHash,
       u.upi,

@@ -141,11 +141,11 @@ export default function PhonePeDashboard() {
   // UPI VALIDATION
   // =============================
 
-  const isValidUpi = (upi) => {
-    const upiRegex =
-      /^[a-zA-Z0-9._-]{2,50}@[a-zA-Z0-9.-]{2,50}$/;
-
-    return upiRegex.test(upi.trim());
+  const isValidReceiver = (val) => {
+    const upiRegex = /^[a-zA-Z0-9._-]{2,50}@[a-zA-Z0-9.-]{2,50}$/;
+    const phoneRegex = /^[6-9]\d{9}$/;
+    const v = val.trim();
+    return upiRegex.test(v) || phoneRegex.test(v);
   };
 
   // =============================
@@ -323,6 +323,8 @@ export default function PhonePeDashboard() {
   // PAYMENT
   // =============================
 
+  const [gateProcessing, setGateProcessing] = useState(null);
+
   const handlePayment = async (e) => {
     e.preventDefault();
     setMessage('');
@@ -330,12 +332,12 @@ export default function PhonePeDashboard() {
     const receiverUpi = paymentMode === 'TO_SELF' ? myUpiId : form.receiver.trim();
 
     if (!receiverUpi) {
-      setMessage('Please enter a UPI ID.');
+      setMessage(paymentMode === 'TO_SELF' ? 'Self UPI not found.' : 'Please enter a UPI ID or Phone Number.');
       return;
     }
 
-    if (!isValidUpi(receiverUpi)) {
-      setMessage('Invalid UPI ID. Example: userB@upi');
+    if (!isValidReceiver(receiverUpi)) {
+      setMessage('Invalid format. Use name@upi or a 10-digit mobile number.');
       return;
     }
 
@@ -351,6 +353,7 @@ export default function PhonePeDashboard() {
     }
 
     setIsSubmittingPayment(true);
+    setGateProcessing('Analyzing Security Gate...');
 
     try {
       const idempotencyKey = `idemp-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -361,6 +364,8 @@ export default function PhonePeDashboard() {
         note: paymentMode === 'TO_SELF' ? 'Self Transfer' : undefined,
       });
 
+      setGateProcessing('APPROVED');
+
       if (res && res.success) {
         setBalance(res.balance);
         setForm({ receiver: paymentMode === 'TO_SELF' ? myUpiId : '', amount: '' });
@@ -369,11 +374,11 @@ export default function PhonePeDashboard() {
         setPaymentResult({
           type: 'success',
           amount,
-          receiver: receiverUpi,
-          transactionId:
-            res.transaction?.transactionId ||
-            res.transaction?.id ||
-            'N/A',
+          receiver: res.transaction?.receiverName || receiverUpi,
+          transactionId: res.transaction?.transactionId || res.transaction?.id || 'N/A',
+          securityScore: res.securityScore,
+          decision: res.decision,
+          createdAt: res.transaction?.createdAt
         });
 
         if (navigator.vibrate) {
@@ -397,10 +402,10 @@ export default function PhonePeDashboard() {
       }
     } catch (err) {
       console.error('Payment error:', err);
+      setGateProcessing('BLOCKED');
 
-      const errMsg =
-        err.response?.data?.error ||
-        'Payment processing failed.';
+      const data = err.response?.data || {};
+      const errMsg = data.error || 'Payment processing failed.';
 
       setMessage('');
 
@@ -410,6 +415,9 @@ export default function PhonePeDashboard() {
         receiver: receiverUpi,
         transactionId: null,
         error: errMsg,
+        reason: data.reason,
+        securityScore: data.securityScore,
+        decision: data.decision || 'BLOCKED'
       });
 
       if (navigator.vibrate) {
@@ -598,78 +606,6 @@ export default function PhonePeDashboard() {
         </button>
       </section>
 
-      <section className="phonepe-card">
-        <div className="section-heading">
-          <h2>Recharge &amp; Pay Bills</h2>
-          <ChevronRight size={18} />
-        </div>
-
-        <div className="bill-grid">
-          <button type="button">
-            <Smartphone
-              className="bill-icon"
-              size={24}
-            />
-            <span>Mobile</span>
-          </button>
-
-          <button type="button">
-            <Tv
-              className="bill-icon"
-              size={24}
-            />
-            <span>DTH</span>
-          </button>
-
-          <button type="button">
-            <SmartphoneCharging
-              className="bill-icon"
-              size={24}
-            />
-            <span>Electricity</span>
-          </button>
-
-          <button type="button">
-            <CreditCard
-              className="bill-icon"
-              size={24}
-            />
-            <span>Credit Card</span>
-          </button>
-
-          <button type="button">
-            <Fuel
-              className="bill-icon"
-              size={24}
-            />
-            <span>Fuel</span>
-          </button>
-
-          <button type="button">
-            <Shield
-              className="bill-icon"
-              size={24}
-            />
-            <span>Insurance</span>
-          </button>
-
-          <button type="button">
-            <Wallet
-              className="bill-icon"
-              size={24}
-            />
-            <span>Wallet</span>
-          </button>
-
-          <button type="button">
-            <ArrowUpRight
-              className="bill-icon"
-              size={24}
-            />
-            <span>More</span>
-          </button>
-        </div>
-      </section>
 
       <section className="phonepe-card">
         <div className="section-heading">
@@ -764,12 +700,12 @@ export default function PhonePeDashboard() {
         className="payment-form"
       >
         <label>
-          {paymentMode === 'TO_SELF' ? 'Destination Account (Your UPI)' : 'Receiver UPI ID'}
+          {paymentMode === 'TO_SELF' ? 'Destination Account (Your UPI)' : 'Receiver UPI ID / Phone Number'}
 
           <div className="upi-input-row">
             <input
               type="text"
-              placeholder={paymentMode === 'TO_SELF' ? myUpiId : 'e.g. rahul@upi'}
+              placeholder={paymentMode === 'TO_SELF' ? myUpiId : 'UPI ID or 10-digit Mobile'}
               value={paymentMode === 'TO_SELF' ? myUpiId : form.receiver}
               disabled={paymentMode === 'TO_SELF'}
               onChange={(e) =>
@@ -829,8 +765,16 @@ export default function PhonePeDashboard() {
           disabled={isAnalyzing || isSubmittingPayment}
         >
           <Send size={19} />
-          {isSubmittingPayment ? 'Processing...' : isAnalyzing ? 'Analyzing...' : paymentMode === 'TO_SELF' ? 'Transfer to Self' : 'Pay Securely'}
+          {isSubmittingPayment ? (gateProcessing || 'Processing...') : isAnalyzing ? 'Analyzing...' : paymentMode === 'TO_SELF' ? 'Transfer to Self' : 'Pay Securely'}
         </button>
+
+        {gateProcessing && (
+          <div className="security-gate-animation">
+            <div className={`gate-status ${gateProcessing === 'BLOCKED' ? 'blocked' : 'analyzing'}`}>
+              <Shield size={16} /> {gateProcessing}
+            </div>
+          </div>
+        )}
 
         {message && (
           <div className="payment-message">
@@ -1635,40 +1579,38 @@ export default function PhonePeDashboard() {
             <h1>
               {paymentResult.type === 'success'
                 ? 'Payment Successful'
-                : 'Payment Failed'}
+                : 'Payment Blocked'}
             </h1>
 
             <div className="payment-result-amount">
-              {new Intl.NumberFormat('en-IN', {
-                style: 'currency',
-                currency: 'INR',
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              }).format(
-                Number(paymentResult.amount || 0)
-              )}
+              {formatINR(paymentResult.amount || 0)}
             </div>
 
-            {paymentResult.type === 'success' ? (
-              <>
-                <p>
-                  Sent to {paymentResult.receiver}
-                </p>
-
-                <small>
-                  Transaction ID:{' '}
-                  {paymentResult.transactionId}
-                </small>
-              </>
-            ) : (
-              <p>
-                {paymentResult.error}
-              </p>
-            )}
+            <div className="payment-result-details">
+              {paymentResult.type === 'success' ? (
+                <>
+                  <p><strong>Receiver:</strong> {paymentResult.receiver}</p>
+                  <p><strong>Transaction ID:</strong> {paymentResult.transactionId}</p>
+                  <p><strong>Date:</strong> {new Date(paymentResult.createdAt || Date.now()).toLocaleString()}</p>
+                </>
+              ) : (
+                <>
+                  <p><strong>Reason:</strong> {paymentResult.reason || paymentResult.error}</p>
+                </>
+              )}
+              
+              <div className="payment-result-security">
+                <p><strong>Security Score:</strong> {paymentResult.securityScore}/100</p>
+                <p><strong>Decision:</strong> <span className={paymentResult.decision === 'ALLOW' ? 'security-pass' : 'security-warning'}>{paymentResult.decision}</span></p>
+              </div>
+            </div>
 
             <button
               type="button"
-              onClick={() => setPaymentResult(null)}
+              onClick={() => {
+                setPaymentResult(null);
+                setGateProcessing(null);
+              }}
             >
               Continue
             </button>

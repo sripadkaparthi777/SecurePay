@@ -27,7 +27,23 @@ export function evaluateSecurityGate({
   if (cleanReceiverUpi === cleanSenderUpi) return { decision: "BLOCK", score, reasons: ["Self-payment blocked"], findings, scanStatus };
   
   const numericAmount = Number(amount);
-  if (!numericAmount || numericAmount <= 0) return { decision: "BLOCK", score, reasons: ["Invalid amount"], findings, scanStatus };
+  if (!numericAmount || numericAmount <= 0) return { decision: "BLOCK", score: 0, reasons: ["Invalid amount (must be > 0)"], findings, scanStatus };
+
+  // Transaction-specific Risk Factors
+  if (numericAmount > 50000) {
+    score -= 10;
+    reasons.push("High value transaction alert");
+  }
+
+  const recentTxs = db.prepare(`
+    SELECT COUNT(*) as count FROM transactions 
+    WHERE sender_user_id = ? AND created_at > datetime('now', '-5 minutes')
+  `).get(authenticatedUserId);
+
+  if (recentTxs.count > 5) {
+    score -= 15;
+    reasons.push("Suspicious frequency detected");
+  }
 
   // 2. Account & Balance Check
   const senderAccount = db.prepare('SELECT balance FROM accounts WHERE user_id = ?').get(authenticatedUserId);
@@ -35,9 +51,14 @@ export function evaluateSecurityGate({
     return { decision: "BLOCK", score, reasons: ["Insufficient balance"], findings, scanStatus };
   }
 
-  const receiverAccount = db.prepare('SELECT user_id FROM accounts WHERE LOWER(upi_id) = ?').get(cleanReceiverUpi);
+  const receiverAccount = db.prepare(`
+    SELECT a.user_id FROM accounts a
+    LEFT JOIN users u ON u.id = a.user_id
+    WHERE LOWER(a.upi_id) = ? OR u.phone = ?
+  `).get(cleanReceiverUpi, cleanReceiverUpi);
+
   if (!receiverAccount) {
-    return { decision: "BLOCK", score, reasons: ["Receiver not found"], findings, scanStatus };
+    return { decision: "BLOCK", score: 0, reasons: ["Receiver account not found"], findings, scanStatus };
   }
 
   // 3. Security Findings & Vulnerability Injection Check
