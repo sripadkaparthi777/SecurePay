@@ -3,6 +3,10 @@ const buckets = new Map();
 const WINDOW_MS = 60 * 1000;
 const MAX_REQUESTS = 10;
 
+export function resetPaymentRateLimitForTests() {
+  buckets.clear();
+}
+
 export function paymentRateLimit(req, res, next) {
   const key = req.user?.userId || req.ip || "anonymous";
   const now = Date.now();
@@ -28,3 +32,4 @@ export function paymentRateLimit(req, res, next) {
 
   next();
 }
+

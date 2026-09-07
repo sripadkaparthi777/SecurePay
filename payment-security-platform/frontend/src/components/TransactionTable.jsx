@@ -34,7 +34,7 @@ export default function TransactionTable({ transactions = [], onViewSecurity }) 
                 <td>{row.receiver}</td>
 
                 <td>
-                  ₹{Number(row.amount || 0).toFixed(2)}
+                  \u20B9{Number(row.amount || 0).toFixed(2)}
                 </td>
 
                 <td>

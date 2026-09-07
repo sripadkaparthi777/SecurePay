@@ -44,10 +44,27 @@ export function evaluateSecurityGate({
   // We check for active vulnerabilities in the system
   // For Phase 2, we simulate findings that might be present in a "vulnerabilities" table
   // or injected via a global state for demo purposes.
-  const activeFindings = db.prepare(`
-    SELECT * FROM security_findings 
-    WHERE status = 'CONFIRMED' AND (payment_critical = 1 OR severity IN ('CRITICAL', 'HIGH'))
-  `).all();
+  const latestScan = db.prepare(`
+  SELECT id, status
+  FROM security_scans
+  ORDER BY created_at DESC
+  LIMIT 1
+`).get();
+
+let activeFindings = [];
+
+if (latestScan?.status === 'VALID') {
+  activeFindings = db.prepare(`
+    SELECT *
+    FROM security_findings
+    WHERE scan_id = ?
+      AND status = 'CONFIRMED'
+      AND (
+        payment_critical = 1
+        OR severity IN ('CRITICAL', 'HIGH')
+      )
+  `).all(latestScan.id);
+}
 
   for (const finding of activeFindings) {
     findings.push(finding.id);

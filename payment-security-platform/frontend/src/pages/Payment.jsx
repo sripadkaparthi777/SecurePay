@@ -95,7 +95,7 @@ export default function Payment() {
       <ul>
         {transactions.map((tx) => (
           <li key={tx.id}>
-            {tx.id} — {tx.status}
+            {tx.id} - {tx.status}
           </li>
         ))}
       </ul>

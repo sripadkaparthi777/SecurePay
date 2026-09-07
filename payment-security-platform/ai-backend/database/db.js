@@ -8,7 +8,6 @@ import { hashPassword } from '../services/cryptoService.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Ensure database directory exists
 const dbDir = path.dirname(config.dbPath);
 if (!fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
@@ -104,9 +103,25 @@ export function initSchema(db) {
       completed_at TEXT,
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS security_incidents (
+      incident_id TEXT PRIMARY KEY,
+      attack_type TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      test_user_id TEXT,
+      target_user_id TEXT,
+      transaction_id TEXT,
+      original_request TEXT,
+      modified_request TEXT,
+      expected_result TEXT,
+      actual_result TEXT,
+      security_decision TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'OPEN',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 
-  // Safe Migrations for existing audit_logs table
   const tableInfo = db.prepare("PRAGMA table_info(audit_logs)").all();
   const columns = tableInfo.map(c => c.name);
 
@@ -126,8 +141,9 @@ export function initSchema(db) {
 
 export function seedDemoUsers(db) {
   const existingUsers = db.prepare('SELECT COUNT(*) as count FROM users').get();
+
   if (existingUsers && existingUsers.count > 0) {
-    return; // Already seeded
+    return;
   }
 
   const demoUsers = [
@@ -183,17 +199,36 @@ export function seedDemoUsers(db) {
 
   for (const u of demoUsers) {
     const passwordHash = hashPassword(u.password);
-    insertUser.run(u.id, u.email, u.name, u.role, passwordHash, u.upi, now);
-    insertAccount.run(`acc_${u.id}`, u.id, u.upi, u.initialBalance, 'INR', now);
+
+    insertUser.run(
+      u.id,
+      u.email,
+      u.name,
+      u.role,
+      passwordHash,
+      u.upi,
+      now
+    );
+
+    insertAccount.run(
+      `acc_${u.id}`,
+      u.id,
+      u.upi,
+      u.initialBalance,
+      'INR',
+      now
+    );
   }
 }
 
 export function resetDatabase(db) {
   db.exec(`
+    DELETE FROM security_incidents;
     DELETE FROM audit_logs;
     DELETE FROM transactions;
     DELETE FROM accounts;
     DELETE FROM users;
   `);
+
   seedDemoUsers(db);
 }

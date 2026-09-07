@@ -9,6 +9,7 @@ import paymentRoutes from './routes/paymentRoutes.js';
 import transactionRoutes from './routes/transactionRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
 import auditRoutes from './routes/auditRoutes.js';
+import securityScanRoutes from './routes/securityScanRoutes.js';
 import api7TestRoutes from './routes/api7TestRoutes.js';
 import api9TestRoutes from './routes/api9TestRoutes.js';
 import api10TestRoutes from './routes/api10TestRoutes.js';
@@ -17,6 +18,8 @@ import api6TestRoutes from './routes/api6TestRoutes.js';
 import rateLimitTestRoutes from './routes/rateLimitTestRoutes.js';
 import { authenticate } from './middleware/authMiddleware.js';
 import { getMe } from './controllers/authController.js';
+import { attackSimulationRoutes } from './routes/attackSimulationRoutes.js';
+import { securityIncidentRoutes } from './routes/securityIncidentRoutes.js';
 
 const app = express();
 
@@ -102,6 +105,8 @@ app.get('/api/me', authenticate, getMe);
 
 // Mount Modular Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/attack-simulation', attackSimulationRoutes);
+app.use('/api/security-incidents', securityIncidentRoutes);
 app.use('/api/accounts', accountRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/transactions', transactionRoutes);
@@ -112,7 +117,8 @@ app.use('/api/security-test/api7', api7TestRoutes);
 app.use('/api/security-test/api8', api8TestRoutes);
 app.use('/api/security-test/api9', api9TestRoutes);
 app.use('/api/security-test/api10', api10TestRoutes);
-app.use('/api', aiRoutes); // Contains /api/analyze-security
+app.use('/api', aiRoutes);
+app.use('/api', securityScanRoutes); // Contains /api/analyze-security
 
 // 404 handler for unmatched routes
 app.use((req, res) => {
@@ -141,6 +147,9 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 export default app;
+
+
+
 
 
 

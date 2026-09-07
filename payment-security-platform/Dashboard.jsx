@@ -2,35 +2,9 @@ import React, { useState, useEffect } from 'react';
 import StatCard from '../components/StatCard';
 import SecurityScore from '../components/SecurityScore';
 import TransactionTable from '../components/TransactionTable';
+import { api } from '../services/api';
 
 const STORAGE_KEY = 'securepay_dashboard_state';
-
-const initialSecurityData = {
-  'TX-001': {
-    risk: 'Low',
-    score: 92,
-    status: 'Secure',
-    tests: [
-      { name: 'Authentication', status: 'Passed', detail: 'Valid session token verified' },
-      { name: 'Authorization / BOLA', status: 'Passed', detail: 'Sender cannot access another user transaction' },
-      { name: 'Amount Manipulation', status: 'Passed', detail: 'Amount validation accepted ₹100' },
-      { name: 'Replay Attack', status: 'Passed', detail: 'Duplicate transaction rejected' },
-      { name: 'Rate Limiting', status: 'Passed', detail: 'Request threshold within safe limit' },
-    ],
-  },
-  'TX-002': {
-    risk: 'Medium',
-    score: 68,
-    status: 'Warning',
-    tests: [
-      { name: 'Authentication', status: 'Passed', detail: 'Valid session token verified' },
-      { name: 'Authorization / BOLA', status: 'Passed', detail: 'Transaction ownership verified' },
-      { name: 'Amount Manipulation', status: 'Passed', detail: 'Amount validation successful' },
-      { name: 'Replay Attack', status: 'Warning', detail: 'Repeated transaction detected' },
-      { name: 'Rate Limiting', status: 'Failed', detail: 'Multiple requests allowed' },
-    ],
-  },
-};
 
 const defaultTransactions = [
   {
@@ -54,32 +28,116 @@ const defaultTransactions = [
 const loadSavedTransactions = () => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultTransactions;
+
+    if (!raw) {
+      return defaultTransactions;
+    }
+
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed?.transactions) && parsed.transactions.length > 0) {
+
+    if (
+      Array.isArray(parsed?.transactions) &&
+      parsed.transactions.length > 0
+    ) {
       return parsed.transactions;
     }
   } catch (err) {
-    console.warn('Failed to parse saved state in Dashboard:', err);
+    console.warn('Failed to parse saved Dashboard state:', err);
   }
+
   return defaultTransactions;
+};
+
+const calculateSecurityScore = (failedResults) => {
+  const critical = failedResults.filter(
+    (r) => String(r.severity).toUpperCase() === 'CRITICAL'
+  ).length;
+
+  const high = failedResults.filter(
+    (r) => String(r.severity).toUpperCase() === 'HIGH'
+  ).length;
+
+  const medium = failedResults.filter(
+    (r) => String(r.severity).toUpperCase() === 'MEDIUM'
+  ).length;
+
+  const low = failedResults.filter(
+    (r) => String(r.severity).toUpperCase() === 'LOW'
+  ).length;
+
+  return Math.max(
+    0,
+    100 -
+      critical * 30 -
+      high * 20 -
+      medium * 10 -
+      low * 5
+  );
+};
+
+const getRiskLevel = (failedResults) => {
+  if (
+    failedResults.some(
+      (r) => String(r.severity).toUpperCase() === 'CRITICAL'
+    )
+  ) {
+    return 'CRITICAL';
+  }
+
+  if (
+    failedResults.some(
+      (r) => String(r.severity).toUpperCase() === 'HIGH'
+    )
+  ) {
+    return 'HIGH';
+  }
+
+  if (
+    failedResults.some(
+      (r) => String(r.severity).toUpperCase() === 'MEDIUM'
+    )
+  ) {
+    return 'MEDIUM';
+  }
+
+  return 'LOW';
+};
+
+const getSecurityStatus = (score) => {
+  if (score >= 90) return 'Secure';
+  if (score >= 70) return 'Warning';
+  return 'At Risk';
 };
 
 export default function Dashboard() {
   const [mode, setMode] = useState('USER');
-  const [transactions, setTransactions] = useState(loadSavedTransactions);
-  const [selectedTransactionId, setSelectedTransactionId] = useState(() => {
-    const txs = loadSavedTransactions();
-    return txs[0]?.id || 'TX-001';
-  });
+
+  const [transactions, setTransactions] = useState(
+    loadSavedTransactions
+  );
+
+  const [selectedTransactionId, setSelectedTransactionId] = useState(
+    () => {
+      const txs = loadSavedTransactions();
+      return txs[0]?.id || null;
+    }
+  );
+
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState('');
 
   useEffect(() => {
     const updateTransactions = () => {
       const updated = loadSavedTransactions();
+
       setTransactions(updated);
-      setSelectedTransactionId((prev) => {
-        if (updated.some((t) => t.id === prev)) return prev;
-        return updated[0]?.id || 'TX-001';
+
+      setSelectedTransactionId((previousId) => {
+        if (updated.some((tx) => tx.id === previousId)) {
+          return previousId;
+        }
+
+        return updated[0]?.id || null;
       });
     };
 
@@ -87,6 +145,7 @@ export default function Dashboard() {
 
     window.addEventListener('storage', updateTransactions);
     window.addEventListener('focus', updateTransactions);
+
     return () => {
       window.removeEventListener('storage', updateTransactions);
       window.removeEventListener('focus', updateTransactions);
@@ -95,110 +154,305 @@ export default function Dashboard() {
 
   const handleViewSecurity = (transaction) => {
     setSelectedTransactionId(transaction.id || transaction);
+    setAnalysisError('');
     setMode('SECURITY');
   };
 
   const selectedTxObj =
-    transactions.find((t) => t.id === selectedTransactionId) || transactions[0];
+    transactions.find(
+      (tx) => tx.id === selectedTransactionId
+    ) || transactions[0];
 
-  const getSecurityForTx = (txObj) => {
-    if (!txObj) {
-      return {
-        score: 85,
-        risk: 'Low',
-        status: 'Secure',
-        tests: [],
+  /*
+   * ============================================================
+   * REAL SECUREPAY SECURITY SCAN
+   * ============================================================
+   */
+  const handleAnalyzeTransaction = async () => {
+    if (!selectedTxObj) return;
+
+    setIsAnalyzing(true);
+    setAnalysisError('');
+
+    try {
+      /*
+       * This calls:
+       *
+       * POST /api/security-scan
+       *
+       * The backend executes:
+       * SecurePay Deterministic Security Engine
+       * OWASP API1 - API10
+       */
+      const response = await api.runSecurityScan();
+
+      if (!response?.success || !response?.scan) {
+        throw new Error(
+          'Security scan response was incomplete.'
+        );
+      }
+
+      const scan = response.scan;
+
+      const results = Array.isArray(scan.results)
+        ? scan.results
+        : [];
+
+      const failedResults = results.filter(
+        (result) =>
+          String(result.status).toUpperCase() !== 'PASS'
+      );
+
+      const securityScore =
+        calculateSecurityScore(failedResults);
+
+      const riskLevel =
+        getRiskLevel(failedResults);
+
+      const securityStatus =
+        getSecurityStatus(securityScore);
+
+      const passedCount = results.filter(
+        (result) =>
+          String(result.status).toUpperCase() === 'PASS'
+      ).length;
+
+      /*
+       * Build security analysis from REAL OWASP results.
+       */
+      const securityAnalysis = {
+        securityScore,
+        riskLevel,
+        securityStatus,
+
+        scanId: scan.scanId,
+        scanner: scan.scanner,
+        scannerVersion: scan.scannerVersion,
+
+        findingsCount: scan.findingsCount,
+
+        passedCount,
+        totalTests: results.length,
+
+        vulnerabilities: failedResults,
+
+        recommendations: failedResults
+          .map((result) => result.recommendation)
+          .filter(Boolean),
+
+        explanation:
+          failedResults.length === 0
+            ? `SecurePay completed a valid OWASP API1-API10 security scan. All ${results.length} tested security controls passed and no vulnerabilities were detected.`
+            : `SecurePay detected ${failedResults.length} security finding(s) during the OWASP API1-API10 security scan.`,
+
+        owaspResults: results,
+
+        zap: response.zap || null,
       };
+
+      const updatedTransactions = transactions.map(
+        (transaction) =>
+          transaction.id === selectedTxObj.id
+            ? {
+                ...transaction,
+                securityAnalysis,
+              }
+            : transaction
+      );
+
+      setTransactions(updatedTransactions);
+
+      /*
+       * Save the real scan result locally so it remains
+       * available when the Dashboard is revisited.
+       */
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          transactions: updatedTransactions,
+        })
+      );
+    } catch (error) {
+      console.error(
+        'SecurePay security scan error:',
+        error
+      );
+
+      setAnalysisError(
+        error.response?.data?.error ||
+          error.message ||
+          'Failed to perform SecurePay security scan.'
+      );
+    } finally {
+      setIsAnalyzing(false);
     }
-
-    if (txObj.securityAnalysis) {
-      const analysis = txObj.securityAnalysis;
-      const tests = [
-        { name: 'Authentication', status: 'Passed', detail: 'Verified session token' },
-        { name: 'Authorization / BOLA', status: 'Passed', detail: 'Authorized transaction sender' },
-        { name: 'Amount Manipulation', status: 'Passed', detail: `Accepted amount ₹${txObj.amount}` },
-        {
-          name: 'AI Vulnerability Check',
-          status: analysis.vulnerabilities?.length > 0 ? 'Warning' : 'Passed',
-          detail: analysis.explanation || 'No major issues detected',
-        },
-      ];
-
-      return {
-        score: analysis.securityScore ?? 85,
-        risk: analysis.riskLevel ?? 'Low',
-        status: analysis.securityScore >= 80 ? 'Secure' : 'Warning',
-        explanation: analysis.explanation,
-        vulnerabilities: analysis.vulnerabilities,
-        recommendations: analysis.recommendations,
-        tests,
-      };
-    }
-
-    if (initialSecurityData[txObj.id]) {
-      return initialSecurityData[txObj.id];
-    }
-
-    return {
-      score: 88,
-      risk: 'Low',
-      status: 'Secure',
-      tests: [
-        { name: 'Authentication', status: 'Passed', detail: 'Valid session token verified' },
-        { name: 'Authorization / BOLA', status: 'Passed', detail: 'Transaction ownership verified' },
-        { name: 'Amount Manipulation', status: 'Passed', detail: `Amount validation accepted ₹${txObj.amount}` },
-        { name: 'Replay Attack', status: 'Passed', detail: 'Replay attack check passed' },
-        { name: 'Rate Limiting', status: 'Passed', detail: 'Request threshold within safe limit' },
-      ],
-    };
   };
 
-  const selectedSecurity = getSecurityForTx(selectedTxObj);
+  /*
+   * ============================================================
+   * SECURITY DATA
+   * ============================================================
+   */
+  const analysis =
+    selectedTxObj?.securityAnalysis || null;
 
+  const score = analysis?.securityScore ?? null;
+
+  const riskLevel =
+    analysis?.riskLevel || 'Not Analyzed';
+
+  const securityStatus =
+    analysis?.securityStatus ||
+    'Not Analyzed';
+
+  const owaspResults =
+    Array.isArray(analysis?.owaspResults)
+      ? analysis.owaspResults
+      : [];
+
+  const passedCount =
+    owaspResults.filter(
+      (result) =>
+        String(result.status).toUpperCase() === 'PASS'
+    ).length;
+
+  const failedCount =
+    owaspResults.filter(
+      (result) =>
+        String(result.status).toUpperCase() !== 'PASS'
+    ).length;
+
+  const criticalCount =
+    owaspResults.filter(
+      (result) =>
+        String(result.status).toUpperCase() !== 'PASS' &&
+        String(result.severity).toUpperCase() === 'CRITICAL'
+    ).length;
+
+  /*
+   * ============================================================
+   * USER MODE
+   * ============================================================
+   */
   return (
     <div className="dashboard">
+
       <div className="dashboard-header">
         <div>
           <h1>Dashboard</h1>
-          <p>Payment activity and API security monitoring</p>
+          <p>
+            Payment activity and API security monitoring
+          </p>
         </div>
 
         <div className="mode-toggle">
+
           <button
-            className={mode === 'USER' ? 'active' : ''}
+            className={
+              mode === 'USER'
+                ? 'active'
+                : ''
+            }
             onClick={() => setMode('USER')}
           >
             User Mode
           </button>
 
           <button
-            className={mode === 'SECURITY' ? 'active security' : ''}
-            onClick={() => setMode('SECURITY')}
+            className={
+              mode === 'SECURITY'
+                ? 'active security'
+                : ''
+            }
+            onClick={() => {
+              if (selectedTxObj) {
+                setMode('SECURITY');
+              }
+            }}
           >
             Security Mode
           </button>
+
         </div>
       </div>
 
       {mode === 'USER' && (
         <>
           <div className="stats-grid">
-            <StatCard title="Overall Security Score" value="82/100" />
-            <StatCard title="APIs Scanned" value="12" />
-            <StatCard title="Vulnerabilities Found" value="5" />
-            <StatCard title="Critical Vulnerabilities" value="1" />
+
+            <StatCard
+              title="Overall Security Score"
+              value={
+                score !== null
+                  ? `${score}/100`
+                  : 'Not Analyzed'
+              }
+            />
+
+            <StatCard
+              title="APIs Scanned"
+              value={
+                analysis?.totalTests ??
+                'Not Analyzed'
+              }
+            />
+
+            <StatCard
+              title="Vulnerabilities Found"
+              value={
+                analysis
+                  ? failedCount
+                  : 'Not Analyzed'
+              }
+            />
+
+            <StatCard
+              title="Critical Vulnerabilities"
+              value={
+                analysis
+                  ? criticalCount
+                  : 'Not Analyzed'
+              }
+            />
+
           </div>
 
-          <SecurityScore score={82} />
+          {score !== null && (
+            <SecurityScore score={score} />
+          )}
 
           <section className="dashboard-section">
             <h2>Recent Security Scans</h2>
-            <p>/api/auth/login — 2 issues found</p>
+
+            {analysis ? (
+              <p>
+                {analysis.scanner} —{' '}
+                {analysis.totalTests} OWASP API tests,
+                {' '}
+                {analysis.findingsCount} finding(s)
+              </p>
+            ) : (
+              <p>
+                No security scan has been run yet.
+              </p>
+            )}
           </section>
 
           <section className="dashboard-section">
             <h2>Vulnerability Summary</h2>
-            <p>1 Critical, 2 High, 2 Medium</p>
+
+            {analysis ? (
+              <p>
+                Passed: {passedCount} |
+                {' '}
+                Findings: {failedCount}
+              </p>
+            ) : (
+              <p>
+                Run a security scan to see the
+                vulnerability summary.
+              </p>
+            )}
           </section>
 
           <section className="dashboard-section">
@@ -214,87 +468,389 @@ export default function Dashboard() {
 
       {mode === 'SECURITY' && selectedTxObj && (
         <section className="security-dashboard">
+
           <div className="security-header">
             <div>
               <h2>Security Analysis</h2>
+
               <p>
-                Transaction <strong>{selectedTxObj.id}</strong>
+                Transaction{' '}
+                <strong>
+                  {selectedTxObj.id}
+                </strong>
               </p>
             </div>
 
-            <button onClick={() => setMode('USER')}>
+            <button
+              onClick={() => setMode('USER')}
+            >
               ← Back to User Mode
             </button>
           </div>
 
           <div className="security-summary">
+
             <div className="security-score-large">
-              <span>Security Score</span>
-              <strong>{selectedSecurity.score}/100</strong>
+              <span>
+                Security Score
+              </span>
+
+              <strong>
+                {score !== null
+                  ? `${score}/100`
+                  : 'Not Analyzed'}
+              </strong>
             </div>
 
             <div>
-              <span>Transaction Status</span>
-              <strong>{selectedTxObj.status}</strong>
+              <span>
+                Transaction Status
+              </span>
+
+              <strong>
+                {selectedTxObj.status ||
+                  'COMPLETED'}
+              </strong>
             </div>
 
             <div>
-              <span>Security Status</span>
-              <strong>{selectedSecurity.status}</strong>
+              <span>
+                Risk Level
+              </span>
+
+              <strong>
+                {riskLevel}
+              </strong>
             </div>
+
           </div>
 
           <div className="transaction-details">
-            <h3>Transaction Details</h3>
+
+            <h3>
+              Transaction Details
+            </h3>
 
             <div className="details-grid">
+
               <div>
-                <span>Transaction ID</span>
-                <strong>{selectedTxObj.id}</strong>
+                <span>
+                  Transaction ID
+                </span>
+
+                <strong>
+                  {selectedTxObj.id}
+                </strong>
               </div>
 
               <div>
-                <span>Receiver</span>
-                <strong>{selectedTxObj.receiver}</strong>
+                <span>
+                  Sender
+                </span>
+
+                <strong>
+                  {selectedTxObj.sender ||
+                    'User'}
+                </strong>
               </div>
 
               <div>
-                <span>UPI ID</span>
-                <strong>{selectedTxObj.receiverUpi}</strong>
+                <span>
+                  Receiver
+                </span>
+
+                <strong>
+                  {selectedTxObj.receiver ||
+                    'Unknown'}
+                </strong>
               </div>
 
               <div>
-                <span>Amount</span>
-                <strong>₹{Number(selectedTxObj.amount).toFixed(2)}</strong>
+                <span>
+                  UPI ID
+                </span>
+
+                <strong>
+                  {selectedTxObj.receiverUpi ||
+                    'N/A'}
+                </strong>
               </div>
+
+              <div>
+                <span>
+                  Amount
+                </span>
+
+                <strong>
+                  ₹
+                  {Number(
+                    selectedTxObj.amount || 0
+                  ).toFixed(2)}
+                </strong>
+              </div>
+
             </div>
           </div>
 
-          <div className="security-tests">
-            <h3>Security Tests Performed</h3>
+          {!analysis && (
+            <div className="security-tests">
 
-            {selectedSecurity.tests.map((test) => (
-              <div className="security-test" key={test.name}>
-                <div>
-                  <strong>{test.name}</strong>
-                  <p>{test.detail}</p>
-                </div>
+              <h3>
+                SecurePay Security Engine
+              </h3>
 
-                <span className={`test-result ${test.status.toLowerCase()}`}>
-                  {test.status}
-                </span>
-              </div>
-            ))}
-          </div>
+              <p>
+                This transaction has not been
+                analyzed yet.
+              </p>
 
-          {selectedSecurity.explanation && (
-            <div className="security-note" style={{ marginTop: '16px' }}>
-              <strong>AI Analysis Explanation</strong>
-              <p>{selectedSecurity.explanation}</p>
+              <p>
+                Click below to run the real
+                OWASP API1-API10 security scan.
+              </p>
+
+              {analysisError && (
+                <p
+                  style={{
+                    color: '#ef4444',
+                    fontWeight: '600',
+                  }}
+                >
+                  {analysisError}
+                </p>
+              )}
+
+              <button
+                onClick={
+                  handleAnalyzeTransaction
+                }
+                disabled={isAnalyzing}
+                style={{
+                  marginTop: '12px',
+                  padding: '10px 18px',
+                  backgroundColor: '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: isAnalyzing
+                    ? 'not-allowed'
+                    : 'pointer',
+                  fontWeight: '600',
+                }}
+              >
+                {isAnalyzing
+                  ? 'Running OWASP API1-API10...'
+                  : 'Analyze Transaction'}
+              </button>
+
             </div>
           )}
+
+          {analysis && (
+            <>
+              <div className="security-tests">
+
+                <h3>
+                  SecurePay OWASP API1-API10
+                </h3>
+
+                <p>
+                  Scanner:{' '}
+                  <strong>
+                    {analysis.scanner}
+                  </strong>
+                </p>
+
+                <p>
+                  Version:{' '}
+                  <strong>
+                    {analysis.scannerVersion}
+                  </strong>
+                </p>
+
+                <p>
+                  Scan ID:{' '}
+                  <strong>
+                    {analysis.scanId}
+                  </strong>
+                </p>
+
+                <p>
+                  Result:{' '}
+                  <strong>
+                    {analysis.findingsCount === 0
+                      ? 'All tested controls passed'
+                      : `${analysis.findingsCount} finding(s) detected`}
+                  </strong>
+                </p>
+
+              </div>
+
+              <div className="security-tests">
+
+                <h3>
+                  OWASP API Security Tests
+                </h3>
+
+                {owaspResults.map(
+                  (result) => {
+                    const passed =
+                      String(
+                        result.status
+                      ).toUpperCase() ===
+                      'PASS';
+
+                    return (
+                      <div
+                        className="security-test"
+                        key={result.testId}
+                      >
+                        <div>
+
+                          <strong>
+                            {result.owaspCategory}
+                          </strong>
+
+                          <p>
+                            {result.title}
+                          </p>
+
+                          <p>
+                            Endpoint:{' '}
+                            {result.endpoint}
+                          </p>
+
+                          <p>
+                            {result.description}
+                          </p>
+
+                          <p>
+                            Evidence:{' '}
+                            {result.evidence}
+                          </p>
+
+                        </div>
+
+                        <span
+                          className={`test-result ${
+                            passed
+                              ? 'passed'
+                              : 'failed'
+                          }`}
+                        >
+                          {passed
+                            ? 'PASS'
+                            : 'FAIL'}
+                        </span>
+
+                      </div>
+                    );
+                  }
+                )}
+
+              </div>
+
+              <div className="security-tests">
+
+                <h3>
+                  Security Summary
+                </h3>
+
+                <p>
+                  <strong>
+                    Security Status:
+                  </strong>{' '}
+                  {securityStatus}
+                </p>
+
+                <p>
+                  <strong>
+                    Risk Level:
+                  </strong>{' '}
+                  {riskLevel}
+                </p>
+
+                <p>
+                  <strong>
+                    Tests Passed:
+                  </strong>{' '}
+                  {passedCount}
+                </p>
+
+                <p>
+                  <strong>
+                    Findings:
+                  </strong>{' '}
+                  {failedCount}
+                </p>
+
+              </div>
+
+              <div className="security-tests">
+
+                <h3>
+                  OWASP ZAP Status
+                </h3>
+
+                {analysis.zap ? (
+                  <>
+                    <p>
+                      Scanner:{' '}
+                      <strong>
+                        {analysis.zap.scanner}
+                      </strong>
+                    </p>
+
+                    <p>
+                      Status:{' '}
+                      <strong>
+                        {analysis.zap.status}
+                      </strong>
+                    </p>
+
+                    <p>
+                      Version:{' '}
+                      <strong>
+                        {analysis.zap.version ||
+                          'Not Available'}
+                      </strong>
+                    </p>
+                  </>
+                ) : (
+                  <p>
+                    ZAP status was not returned.
+                  </p>
+                )}
+
+              </div>
+
+              {analysis.recommendations?.length >
+                0 && (
+                <div className="security-tests">
+
+                  <h3>
+                    Security Recommendations
+                  </h3>
+
+                  <ul>
+                    {analysis.recommendations.map(
+                      (recommendation, index) => (
+                        <li key={index}>
+                          {recommendation}
+                        </li>
+                      )
+                    )}
+                  </ul>
+
+                </div>
+              )}
+
+            </>
+          )}
+
         </section>
       )}
+
     </div>
   );
 }

@@ -15,8 +15,8 @@ export default function Reports() {
       <section>
         <h2>API Test Results</h2>
         <ul>
-          <li>/api/auth/login — 2 issues</li>
-          <li>/api/payment/send — 1 issue</li>
+          <li>/api/auth/login - 2 issues</li>
+          <li>/api/payment/send - 1 issue</li>
         </ul>
       </section>
       <section>

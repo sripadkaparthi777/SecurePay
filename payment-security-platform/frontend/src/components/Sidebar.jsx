@@ -21,8 +21,6 @@ export default function Sidebar() {
     { to: '/payment', label: 'Dummy Payment' },
     { to: '/api-explorer', label: 'API Explorer' },
     { to: '/security-scan', label: 'Security Scan' },
-    { to: '/vulnerabilities', label: 'Vulnerabilities' },
-    { to: '/reports', label: 'Reports' },
   ];
 
   return (

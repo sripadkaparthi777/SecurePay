@@ -7,8 +7,6 @@ import Dashboard from './pages/Dashboard';
 import PhonePeDashboard from './PhonePeDashboard';
 import APIExplorer from './pages/APIExplorer';
 import SecurityScan from './pages/SecurityScan';
-import Vulnerabilities from './pages/Vulnerabilities';
-import Reports from './pages/Reports';
 import SecurityIncidents from './pages/SecurityIncidents';
 
 function ProtectedSecurityRoute({ children }) {
@@ -82,19 +80,15 @@ function App() {
         />
 
         <Route
-          path="/vulnerabilities"
           element={
             <Layout>
-              <Vulnerabilities />
             </Layout>
           }
         />
 
         <Route
-          path="/reports"
           element={
             <Layout>
-              <Reports />
             </Layout>
           }
         />

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { resetPaymentRateLimitForTests } from '../middleware/paymentRateLimit.js';
 import { getDb } from '../database/db.js';
 
 const BASE_URL =
@@ -90,6 +91,7 @@ function makeResult({
 
 export class SecurityScanService {
   static async runSecurityScan() {
+      resetPaymentRateLimitForTests();
     const db = getDb();
 
     const scanId = `scn_${crypto.randomUUID()}`;
@@ -805,3 +807,5 @@ export class SecurityScanService {
     });
   }
 }
+
+
