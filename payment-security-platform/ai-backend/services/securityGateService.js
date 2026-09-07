@@ -27,7 +27,15 @@ export function evaluateSecurityGate({
   if (cleanReceiverUpi === cleanSenderUpi) return { decision: "BLOCK", score, reasons: ["Self-payment blocked"], findings, scanStatus };
   
   const numericAmount = Number(amount);
-  if (!numericAmount || numericAmount <= 0) return { decision: "BLOCK", score: 0, reasons: ["Invalid amount (must be > 0)"], findings, scanStatus };
+  if (!numericAmount || numericAmount <= 0) {
+    return {
+      decision: "BLOCK",
+      score: 0,
+      reasons: ["Invalid amount (must be > 0)"],
+      findings,
+      scanStatus,
+    };
+  }
 
   // Transaction-specific Risk Factors
   if (numericAmount > 50000) {
@@ -36,11 +44,11 @@ export function evaluateSecurityGate({
   }
 
   const recentTxs = db.prepare(`
-    SELECT COUNT(*) as count FROM transactions 
+    SELECT COUNT(*) as count FROM transactions
     WHERE sender_user_id = ? AND created_at > datetime('now', '-5 minutes')
   `).get(authenticatedUserId);
 
-  if (recentTxs.count > 5) {
+  if (recentTxs && recentTxs.count > 5) {
     score -= 15;
     reasons.push("Suspicious frequency detected");
   }
