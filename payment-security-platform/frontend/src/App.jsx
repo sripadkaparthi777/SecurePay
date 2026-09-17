@@ -9,19 +9,48 @@ import APIExplorer from './pages/APIExplorer';
 import SecurityScan from './pages/SecurityScan';
 import SecurityIncidents from './pages/SecurityIncidents';
 
-function ProtectedSecurityRoute({ children }) {
+function getCurrentUser() {
   try {
     const rawUser = localStorage.getItem('paymentUser');
+
     if (rawUser) {
-      const user = JSON.parse(rawUser);
-      if (['ADMIN', 'SECURITY_REVIEWER'].includes(user?.role)) {
-        return children;
-      }
+      return JSON.parse(rawUser);
     }
   } catch (err) {
-    console.warn('Error reading user role from localStorage:', err);
+    console.warn('Error reading user from localStorage:', err);
   }
+
+  return null;
+}
+
+function ProtectedSecurityRoute({ children }) {
+  const user = getCurrentUser();
+
+  if (['ADMIN', 'SECURITY_REVIEWER'].includes(user?.role)) {
+    return children;
+  }
+
   return <Navigate to="/dashboard" replace />;
+}
+
+function MainDashboard() {
+  const user = getCurrentUser();
+
+  const isSecurityUser = ['ADMIN', 'SECURITY_REVIEWER'].includes(
+    user?.role
+  );
+
+  // Security users get the security-management dashboard.
+  // Normal users get the unified payment + security dashboard.
+  if (isSecurityUser) {
+    return (
+      <Layout>
+        <Dashboard />
+      </Layout>
+    );
+  }
+
+  return <PhonePeDashboard />;
 }
 
 function App() {
@@ -29,23 +58,22 @@ function App() {
     <BrowserRouter>
       <Routes>
 
-        {/* Login / Mode Selection */}
-        <Route path="/" element={<Login />} />
-
-        {/* User Mode */}
+        {/* Login */}
         <Route
-          path="/payment"
-          element={<PhonePeDashboard />}
+          path="/"
+          element={<Login />}
         />
 
-        {/* Security Mode */}
+        {/* Unified Dashboard */}
         <Route
           path="/dashboard"
-          element={
-            <Layout>
-              <Dashboard />
-            </Layout>
-          }
+          element={<MainDashboard />}
+        />
+
+        {/* Old payment URL redirects to unified dashboard */}
+        <Route
+          path="/payment"
+          element={<Navigate to="/dashboard" replace />}
         />
 
         {/* Security Incidents */}
@@ -60,7 +88,7 @@ function App() {
           }
         />
 
-        {/* Security Tools */}
+        {/* API Explorer */}
         <Route
           path="/api-explorer"
           element={
@@ -70,6 +98,7 @@ function App() {
           }
         />
 
+        {/* Security Scan */}
         <Route
           path="/security-scan"
           element={
@@ -79,22 +108,11 @@ function App() {
           }
         />
 
-        <Route
-          element={
-            <Layout>
-            </Layout>
-          }
-        />
-
-        <Route
-          element={
-            <Layout>
-            </Layout>
-          }
-        />
-
         {/* Unknown URL */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="*"
+          element={<Navigate to="/" replace />}
+        />
 
       </Routes>
     </BrowserRouter>

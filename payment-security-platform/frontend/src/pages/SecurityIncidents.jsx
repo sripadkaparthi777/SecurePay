@@ -248,11 +248,11 @@ export default function SecurityIncidents() {
                   </div>
                   <div className="meta-card">
                     <span className="meta-label">Test User</span>
-                    <span className="meta-value">{selectedIncident.testUser || selectedIncident.senderUser || 'N/A'}</span>
+                    <span className="meta-value">{selectedIncident.testUserId || selectedIncident.testUser || selectedIncident.senderUser || 'N/A'}</span>
                   </div>
                   <div className="meta-card">
                     <span className="meta-label">Target User</span>
-                    <span className="meta-value">{selectedIncident.targetUser || selectedIncident.receiverUser || 'N/A'}</span>
+                    <span className="meta-value">{selectedIncident.targetUserId || selectedIncident.targetUser || selectedIncident.receiverUser || 'N/A'}</span>
                   </div>
                   <div className="meta-card">
                     <span className="meta-label">Transaction ID</span>

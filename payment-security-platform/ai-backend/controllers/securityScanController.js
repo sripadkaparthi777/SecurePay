@@ -12,12 +12,30 @@ export async function runSecurityScan(req, res) {
     let zap = null;
 
     try {
+      const version =
+        await ZapIntegrationService.getVersion();
+
+      const result =
+        await ZapIntegrationService.runScan({
+          scanId: deterministic.scanId,
+          authenticated:
+            typeof req.headers.authorization === 'string' &&
+            req.headers.authorization.startsWith('Bearer '),
+        });
+
       zap = {
-        scanner: 'OWASP ZAP',
-        version:
-          await ZapIntegrationService.getVersion(),
-        status: 'AVAILABLE',
+        scanner: result.scanner,
+        version,
+        status: result.status,
+        target: result.target,
+        authenticated: result.authenticated,
+        spiderEndpoints: result.spiderEndpoints,
+        alertsFound: result.alertsFound,
+        persisted: result.persisted,
+        skippedDuplicates: result.skippedDuplicates,
+        alerts: result.alerts,
       };
+
     } catch (zapError) {
       console.warn(
         `[ZAP-${requestId}]`,
@@ -28,12 +46,22 @@ export async function runSecurityScan(req, res) {
         scanner: 'OWASP ZAP',
         version: null,
         status: 'UNAVAILABLE',
+        authenticated: false,
+        spiderEndpoints: 0,
+        alertsFound: 0,
+        persisted: 0,
+        skippedDuplicates: 0,
+        alerts: [],
+        error:
+          zapError?.message ||
+          'ZAP scan could not be completed.',
       };
     }
 
     return res.json({
       success: true,
       requestId,
+
       scan: {
         scanId: deterministic.scanId,
         status: deterministic.status,
@@ -42,6 +70,7 @@ export async function runSecurityScan(req, res) {
         findingsCount: deterministic.findingsCount,
         results: deterministic.results,
       },
+
       zap,
     });
 

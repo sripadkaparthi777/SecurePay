@@ -1,25 +1,51 @@
 import { getDb } from '../database/db.js';
-
 export function getMyTransactions(req, res) {
   try {
     const db = getDb();
+
     const rows = db.prepare(`
-      SELECT 
-        transaction_id as id,
-        transaction_id as transactionId,
-        sender_user_id as senderUserId,
-        sender_upi as senderUpi,
-        receiver_user_id as receiverUserId,
-        receiver_upi as receiverUpi,
-        amount,
-        status,
-        type,
-        idempotency_key as idempotencyKey,
-        created_at as createdAt,
-        note
-      FROM transactions 
-      WHERE owner_user_id = ?
-      ORDER BY created_at DESC
+      SELECT
+        t.transaction_id as id,
+        t.transaction_id as transactionId,
+        t.sender_user_id as senderUserId,
+        t.sender_upi as senderUpi,
+        t.receiver_user_id as receiverUserId,
+        t.receiver_upi as receiverUpi,
+        t.amount,
+        t.status,
+        t.type,
+        t.idempotency_key as idempotencyKey,
+        t.created_at as createdAt,
+        t.note,
+
+        (
+          SELECT a.security_score
+          FROM audit_logs a
+          WHERE a.transaction_id = t.transaction_id
+            AND a.security_score IS NOT NULL
+          ORDER BY a.timestamp DESC
+          LIMIT 1
+        ) as securityScore,
+
+        (
+          SELECT a.decision
+          FROM audit_logs a
+          WHERE a.transaction_id = t.transaction_id
+          ORDER BY a.timestamp DESC
+          LIMIT 1
+        ) as securityDecision,
+
+        (
+          SELECT a.findings
+          FROM audit_logs a
+          WHERE a.transaction_id = t.transaction_id
+          ORDER BY a.timestamp DESC
+          LIMIT 1
+        ) as securityFindings
+
+      FROM transactions t
+      WHERE t.owner_user_id = ?
+      ORDER BY t.created_at DESC
     `).all(req.user.userId);
 
     return res.json({
@@ -29,13 +55,13 @@ export function getMyTransactions(req, res) {
     });
   } catch (error) {
     console.error('getMyTransactions error:', error);
+
     return res.status(500).json({
       success: false,
       error: 'Failed to retrieve transactions.',
     });
   }
 }
-
 export function getAllTransactions(req, res) {
   try {
     const db = getDb();

@@ -53,6 +53,29 @@ export default function PhonePeDashboard() {
   const [currentUser, setCurrentUser] = useState(savedUser);
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState([]);
+  const isSecurityTestTransaction = (tx) => {
+  const transactionId = String(
+    tx?.transactionId || tx?.id || ''
+  ).toUpperCase();
+
+  const idempotencyKey = String(
+    tx?.idempotencyKey || ''
+  ).toUpperCase();
+
+  const type = String(tx?.type || '').toUpperCase();
+
+  return (
+    transactionId.startsWith('TX-SCAN-') ||
+    transactionId.startsWith('SIM-') ||
+    idempotencyKey.startsWith('API3-SCAN-') ||
+    idempotencyKey.startsWith('API6-SCAN-') ||
+    type === 'SCAN'
+  );
+};
+
+const visibleTransactions = transactions.filter(
+  (tx) => !isSecurityTestTransaction(tx)
+);
   const [isLoadingData, setIsLoadingData] = useState(true);
 
   // Add Money Modal State
@@ -75,6 +98,8 @@ export default function PhonePeDashboard() {
   const myUpiId = currentUser.upiId || savedUser.upiId || 'userA@upi';
 
   const [activeTab, setActiveTab] = useState('home');
+  const [workspaceMode, setWorkspaceMode] = useState('USER');
+const [showModeMenu, setShowModeMenu] = useState(false);
   const [paymentMode, setPaymentMode] = useState('TO_MOBILE'); // 'TO_MOBILE' | 'TO_SELF'
   const [showBalance, setShowBalance] = useState(true);
   const [showQR, setShowQR] = useState(false);
@@ -631,10 +656,10 @@ export default function PhonePeDashboard() {
           </button>
         </div>
 
-        <div className="recent-list">
-          {transactions
-            .slice(0, 3)
-            .map((tx) => (
+       <div className="recent-list">
+  {visibleTransactions
+    .slice(0, 3)
+    .map((tx) => (
               <div
                 className="recent-item"
                 key={tx.id || tx.transactionId}
@@ -767,6 +792,54 @@ export default function PhonePeDashboard() {
             ₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </strong>
         </div>
+        <div className="smart-payment-recommendation">
+  <div className="smart-recommendation-header">
+    <span>🤖 SecurePay Assistant</span>
+
+    <span className="recommendation-score">
+      Security Score: {securityScore}/100
+    </span>
+  </div>
+
+  <div className="smart-recommendation-content">
+    <strong>Recommended Payment Method</strong>
+
+    {securityScore >= 80 ? (
+      <>
+        <div className="recommended-method">
+          🟢 To Mobile / UPI
+        </div>
+
+        <p>
+          Your security score is strong.
+          UPI/mobile payment is recommended.
+        </p>
+      </>
+    ) : securityScore >= 60 ? (
+      <>
+        <div className="recommended-method">
+          🟡 Bank Transfer
+        </div>
+
+        <p>
+          Moderate security risk detected.
+          Additional verification is recommended.
+        </p>
+      </>
+    ) : (
+      <>
+        <div className="recommended-method">
+          🔴 Do Not Proceed
+        </div>
+
+        <p>
+          The security score is low.
+          Review the security findings before proceeding.
+        </p>
+      </>
+    )}
+  </div>
+</div>
 
         <button
           className="send-payment-button"
@@ -824,50 +897,69 @@ export default function PhonePeDashboard() {
   // HISTORY
   // =============================
 
-  const renderHistory = () => (
-    <section className="phonepe-card">
-      <div className="page-title-row">
-        <div>
-          <h2>Payment History</h2>
-          <p>Your recent transactions</p>
-        </div>
-
-        <History size={24} />
+ const renderHistory = () => (
+  <section className="phonepe-card">
+    <div className="page-title-row">
+      <div>
+        <h2>Payment History</h2>
+        <p>Your recent transactions</p>
       </div>
 
-      <div className="history-list">
-        {transactions.map((tx) => (
-          <div
-            className="history-item"
-            key={tx.id || tx.transactionId}
-          >
-            <div className="history-left">
-              <div className="history-icon">
-                <Send size={18} />
-              </div>
+      <History size={24} />
+    </div>
 
-              <div>
-                <strong>{getReceiverLabel(tx)}</strong>
-                <span>ID: {tx.id || tx.transactionId}</span>
-                <small>{tx.date || (tx.createdAt ? new Date(tx.createdAt).toLocaleString() : 'N/A')}</small>
-              </div>
+    <div className="history-list">
+      {visibleTransactions.map((tx) => (
+        <div
+          className="history-item"
+          key={tx.id || tx.transactionId}
+        >
+          <div className="history-left">
+            <div className="history-icon">
+              <Send size={18} />
             </div>
 
-            <div className="history-right">
-              <strong style={{ color: tx.type === 'RECEIVED' ? '#16a34a' : 'inherit' }}>
-                {tx.type === 'RECEIVED' ? '+' : '-'}{formatINR(tx.amount)}
-              </strong>
+            <div>
+              <strong>{getReceiverLabel(tx)}</strong>
 
-              <span className={statusClass(tx.status)}>
-                {statusIcon(tx.status)}
-                {String(tx.status || 'COMPLETED').toUpperCase()}
+              <span>
+                ID: {tx.id || tx.transactionId}
               </span>
+
+              <small>
+                {tx.date ||
+                  (tx.createdAt
+                    ? new Date(tx.createdAt).toLocaleString()
+                    : 'N/A')}
+              </small>
             </div>
           </div>
-        ))}
-      </div>
-    </section>
-  );
+
+          <div className="history-right">
+            <strong
+              style={{
+                color:
+                  tx.type === 'RECEIVED'
+                    ? '#16a34a'
+                    : 'inherit',
+              }}
+            >
+              {tx.type === 'RECEIVED' ? '+' : '-'}
+              {formatINR(tx.amount)}
+            </strong>
+
+            <span className={statusClass(tx.status)}>
+              {statusIcon(tx.status)}
+              {String(
+                tx.status || 'COMPLETED'
+              ).toUpperCase()}
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+);
 
   // =============================
   // BANK
@@ -1028,7 +1120,7 @@ export default function PhonePeDashboard() {
           {Array.isArray(aiAnalysisResult.vulnerabilities) &&
             aiAnalysisResult.vulnerabilities.length > 0 && (
               <div style={{ marginBottom: '12px' }}>
-                <strong>Detected Vulnerabilities:</strong>
+                <strong>AI Security Observations:</strong>
                 <ul style={{ paddingLeft: '20px', margin: '4px 0', fontSize: '14px', color: '#dc2626' }}>
                   {aiAnalysisResult.vulnerabilities.map((vuln, idx) => (
                     <li key={idx}>{typeof vuln === 'string' ? vuln : vuln.name || JSON.stringify(vuln)}</li>
@@ -1073,21 +1165,30 @@ export default function PhonePeDashboard() {
       </h3>
 
       <div className="security-transaction-list">
-        {transactions.map((tx) => {
-          const security =
-            tx.id === 'TX-002'
-              ? {
-                  score: 68,
-                  result: 'Warning',
-                  issue:
-                    'Repeated transaction detected',
-                }
-              : {
-                  score: securityScore,
-                  result: 'Passed',
-                  issue:
-                    'No security issues detected',
-                };
+        {visibleTransactions.map((tx) => {
+          const securityScoreForTransaction =
+  tx.securityScore !== null &&
+  tx.securityScore !== undefined
+    ? Number(tx.securityScore)
+    : null;
+
+const security = {
+  score: securityScoreForTransaction,
+  result:
+    securityScoreForTransaction === null
+      ? 'Not Analyzed'
+      : securityScoreForTransaction >= 80
+        ? 'Passed'
+        : securityScoreForTransaction >= 60
+          ? 'Review'
+          : 'High Risk',
+  issue:
+    securityScoreForTransaction === null
+      ? 'Security analysis not available for this transaction.'
+      : securityScoreForTransaction >= 80
+        ? 'No security issues detected'
+        : 'Security review recommended',
+};
 
           return (
             <div
@@ -1104,7 +1205,9 @@ export default function PhonePeDashboard() {
                 </div>
 
                 <div className="security-score-small">
-                  {security.score}/100
+                  {security.score !== null
+  ? `${security.score}/100`
+  : 'Not Analyzed'}
                 </div>
               </div>
 
@@ -1162,51 +1265,139 @@ export default function PhonePeDashboard() {
 
       {/* HEADER */}
 
-      <header className="phonepe-header">
-        <div className="phonepe-profile">
-          <div className="phonepe-avatar">
-            <User size={20} />
+     <header className="phonepe-header">
+
+  <div className="phonepe-profile-section">
+
+    <button
+      type="button"
+      className="phonepe-avatar profile-mode-button"
+      onClick={() => setShowModeMenu((prev) => !prev)}
+      title="Switch workspace"
+    >
+      <User size={20} />
+    </button>
+
+    <div className="phonepe-profile-info">
+      <p className="phonepe-small-text">
+        Welcome back
+      </p>
+
+      <p className="phonepe-user-name">
+        {user.name}
+      </p>
+
+      <p className="phonepe-small-text">
+        {user.mobile}
+      </p>
+    </div>
+
+    {showModeMenu && (
+      <div className="workspace-mode-menu">
+
+        <div className="workspace-mode-title">
+          Workspace
+        </div>
+
+        <button
+          type="button"
+          className={`workspace-mode-option ${
+            workspaceMode === 'USER' ? 'selected' : ''
+          }`}
+          onClick={() => {
+            setWorkspaceMode('USER');
+            setShowModeMenu(false);
+          }}
+        >
+          <div className="workspace-mode-icon user-mode-icon">
+            <User size={18} />
           </div>
 
           <div>
-            <p className="phonepe-small-text">
-              Welcome back
-            </p>
-
-            <p className="phonepe-user-name">
-              {user.name}
-            </p>
-
-            <p className="phonepe-small-text">
-              {user.mobile}
-            </p>
+            <strong>User</strong>
+            <span>
+              Payments & account
+            </span>
           </div>
-        </div>
+        </button>
 
-        <div className="phonepe-header-actions">
+        <button
+          type="button"
+          className={`workspace-mode-option ${
+            workspaceMode === 'SECURITY' ? 'selected' : ''
+          }`}
+          onClick={() => {
+            setWorkspaceMode('SECURITY');
+            setShowModeMenu(false);
+          }}
+        >
+          <div className="workspace-mode-icon security-mode-icon">
+            <Shield size={18} />
+          </div>
 
-          {/* QR BUTTON */}
+          <div>
+            <strong>Security</strong>
+            <span>
+              API security & monitoring
+            </span>
+          </div>
+        </button>
 
-          <button
-            type="button"
-            onClick={() => setShowQR(true)}
-            title="My UPI QR"
-          >
-            <QrCode size={21} />
-          </button>
+      </div>
+    )}
 
-          <button
-            type="button"
-            onClick={() => {
-              api.logout();
-              navigate('/');
-            }}
-            title="Switch Account / Logout"
-          >
-            <LogOut size={21} />
-          </button>
-        </div>
-      </header>
+  </div>
+
+  <div className="workspace-mode-switch">
+
+    <button
+      type="button"
+      className={`workspace-toggle ${
+        workspaceMode === 'USER' ? 'active' : ''
+      }`}
+      onClick={() => setWorkspaceMode('USER')}
+    >
+      <User size={17} />
+      <span>User</span>
+    </button>
+
+    <button
+      type="button"
+      className={`workspace-toggle ${
+        workspaceMode === 'SECURITY' ? 'active security-active' : ''
+      }`}
+      onClick={() => setWorkspaceMode('SECURITY')}
+    >
+      <Shield size={17} />
+      <span>Security</span>
+    </button>
+
+  </div>
+
+  <div className="phonepe-header-actions">
+
+    <button
+      type="button"
+      onClick={() => setShowQR(true)}
+      title="My UPI QR"
+    >
+      <QrCode size={21} />
+    </button>
+
+    <button
+      type="button"
+      onClick={() => {
+        api.logout();
+        navigate('/');
+      }}
+      title="Logout"
+    >
+      <LogOut size={21} />
+    </button>
+
+  </div>
+
+</header>
 
       {/* BALANCE */}
 
@@ -1620,6 +1811,61 @@ export default function PhonePeDashboard() {
                 <p><strong>Decision:</strong> <span className={paymentResult.decision === 'ALLOW' ? 'security-pass' : 'security-warning'}>{paymentResult.decision}</span></p>
               </div>
             </div>
+            <div className="smart-payment-recommendation">
+  <h3>🤖 SecurePay Assistant</h3>
+
+  {paymentResult.decision !== 'ALLOW' ? (
+  <>
+    <p><strong>Recommended Action: Do Not Proceed</strong></p>
+    <p>
+      The security gate did not allow this transaction.
+      Do not select an alternative payment method until
+      the security issue is reviewed.
+    </p>
+  </>
+) : paymentResult.securityScore >= 90 ? (
+    <>
+      <p><strong>Recommended Payment Method: UPI</strong></p>
+      <p>
+        Your security pipeline score is high and the transaction
+        has low risk. UPI is recommended for this payment.
+      </p>
+    </>
+  ): paymentResult.securityScore >= 75 ? (
+  <>
+    <p><strong>Recommended Payment Method: UPI</strong></p>
+    <p>
+      The transaction passed security checks with a good
+      security score. UPI is recommended with continued
+      security monitoring.
+    </p>
+  </>
+): paymentResult.securityScore >= 60 ? (
+    <>
+      <p><strong>Recommended Payment Method: Bank Transfer</strong></p>
+      <p>
+        The security score indicates moderate risk. Additional
+        verification is recommended before proceeding.
+      </p>
+    </>
+  ) : paymentResult.securityScore >= 40 ? (
+    <>
+      <p><strong>Recommended Payment Method: Bank Transfer</strong></p>
+      <p>
+        Elevated security risk detected. Use additional
+        verification before completing the payment.
+      </p>
+    </>
+  ) : (
+    <>
+      <p><strong>Recommended Action: Do Not Proceed</strong></p>
+      <p>
+        The security pipeline score is critically low.
+        Security review is required.
+      </p>
+    </>
+  )}
+</div>
 
             <button
               type="button"

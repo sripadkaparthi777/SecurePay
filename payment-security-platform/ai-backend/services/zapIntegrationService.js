@@ -7,11 +7,8 @@ const ZAP_BASE_URL =
 const TARGET_BASE_URL =
   process.env.SECUREPAY_BASE_URL || 'http://localhost:5002';
 
-const ZAP_SCANNER_NAME =
-  'OWASP ZAP';
-
-const ZAP_SCANNER_VERSION =
-  '2.17.0';
+const ZAP_SCANNER_NAME = 'OWASP ZAP';
+const ZAP_SCANNER_VERSION = '2.17.0';
 
 function normalizeRisk(risk) {
   const value = String(risk || '').toUpperCase();
@@ -115,18 +112,6 @@ function isPaymentCritical(url) {
   );
 }
 
-function buildFingerprint(alert) {
-  return [
-    alert.name || '',
-    alert.risk || '',
-    alert.url || '',
-    alert.method || '',
-    alert.param || '',
-    alert.cweid || '',
-    alert.wascid || '',
-  ].join('|');
-}
-
 async function zapRequest(path) {
   const response = await fetch(
     `${ZAP_BASE_URL}${path}`
@@ -147,6 +132,42 @@ async function zapRequest(path) {
   }
 
   return data;
+}
+
+function encode(value) {
+  return encodeURIComponent(String(value ?? ''));
+}
+
+async function waitForScan({
+  statusPath,
+  scanId,
+  label,
+  timeoutMs = 90000,
+}) {
+  const started = Date.now();
+
+  while (Date.now() - started < timeoutMs) {
+    const result = await zapRequest(
+      `${statusPath}?scanId=${encode(scanId)}`
+    );
+
+    const progress = Number(result?.status || 0);
+
+    if (progress >= 100) {
+      return {
+        completed: true,
+        progress: 100,
+      };
+    }
+
+    await new Promise(resolve =>
+      setTimeout(resolve, 1000)
+    );
+  }
+
+  throw new Error(
+    `${label} timed out after ${timeoutMs}ms`
+  );
 }
 
 export class ZapIntegrationService {
@@ -172,6 +193,126 @@ export class ZapIntegrationService {
       : [];
   }
 
+  static async accessUrl(url) {
+    return zapRequest(
+      `/JSON/core/action/accessUrl/?url=${encode(url)}`
+    );
+  }
+
+  static async startSpider(url) {
+    const result = await zapRequest(
+      `/JSON/spider/action/scan/?url=${encode(url)}` +
+      `&recurse=false`
+    );
+
+    return result?.scan ?? null;
+  }
+
+  static async startActiveScan(url) {
+    const result = await zapRequest(
+      `/JSON/ascan/action/scan/?url=${encode(url)}` +
+      `&recurse=false`
+    );
+
+    return result?.scan ?? null;
+  }
+
+  static async runScan({ scanId, authenticated = false }) {
+
+    /*
+     * Safe, non-destructive API surface.
+     *
+     * We intentionally do NOT active-scan:
+     *   /api/payment/send
+     *   /api/accounts/add-money
+     *   /api/security-scan
+     *
+     * These endpoints can change application state or
+     * recursively trigger security scans.
+     */
+    const safeEndpoints = [
+      '/',
+      '/robots.txt',
+      '/sitemap.xml',
+      '/api/auth/me',
+      '/api/accounts/me',
+      '/api/transactions/me',
+    ];
+
+    const urls = safeEndpoints.map(
+      endpoint => `${TARGET_BASE_URL}${endpoint}`
+    );
+
+    const spiderScans = [];
+    const activeScans = [];
+
+    for (const url of urls) {
+      try {
+        await this.accessUrl(url);
+
+        const spiderId =
+          await this.startSpider(url);
+
+        if (spiderId !== null) {
+          spiderScans.push({
+            url,
+            scanId: spiderId,
+          });
+
+          await waitForScan({
+            statusPath: '/JSON/spider/view/status/',
+            scanId: spiderId,
+            label: 'ZAP Spider',
+            timeoutMs: 30000,
+          });
+        }
+      } catch (error) {
+        console.warn(
+          `[ZAP-SPIDER] ${url}:`,
+          error?.message || error
+        );
+      }
+    }
+
+    for (const url of urls) {
+      try {
+        const activeScanId =
+          await this.startActiveScan(url);
+
+        if (activeScanId !== null) {
+          activeScans.push({
+            url,
+            scanId: activeScanId,
+          });
+
+          await waitForScan({
+            statusPath: '/JSON/ascan/view/status/',
+            scanId: activeScanId,
+            label: 'ZAP Active Scan',
+            timeoutMs: 120000,
+          });
+        }
+      } catch (error) {
+        console.warn(
+          `[ZAP-ACTIVE] ${url}:`,
+          error?.message || error
+        );
+      }
+    }
+
+    const collected =
+      await this.collectAndPersist(scanId);
+
+    return {
+      ...collected,
+      status: 'COMPLETED',
+      authenticated,
+      spiderEndpoints: urls.length,
+      spiderScans,
+      activeScans,
+    };
+  }
+
   static async collectAndPersist(scanId) {
     const db = getDb();
 
@@ -179,6 +320,7 @@ export class ZapIntegrationService {
 
     const existing = db.prepare(`
       SELECT title,
+             severity,
              endpoint,
              method,
              evidence
@@ -191,12 +333,10 @@ export class ZapIntegrationService {
         existing.map(row =>
           [
             row.title || '',
-            '',
+            row.severity || '',
             row.endpoint || '',
             row.method || '',
-            '',
-            '',
-            '',
+            row.evidence || '',
           ].join('|')
         )
       );
@@ -227,10 +367,12 @@ export class ZapIntegrationService {
     let skippedDuplicates = 0;
 
     for (const alert of alerts) {
-
       const title =
         alert.name ||
         'ZAP Security Alert';
+
+      const severity =
+        normalizeRisk(alert.risk);
 
       const endpoint =
         alert.url ||
@@ -255,12 +397,10 @@ export class ZapIntegrationService {
       const fingerprint =
         [
           title,
-          '',
+          severity,
           endpoint,
           method,
-          '',
-          '',
-          '',
+          evidence,
         ].join('|');
 
       if (existingFingerprints.has(fingerprint)) {
@@ -272,7 +412,7 @@ export class ZapIntegrationService {
         `fnd_zap_${crypto.randomUUID()}`,
         mapOwaspCategory(alert),
         title,
-        normalizeRisk(alert.risk),
+        severity,
         endpoint,
         method,
         description,
