@@ -1,29 +1,21 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { api } from './services/api';
 import './PhonePeDashboard.css';
-import { formatINR } from './utils/formatCurrency';
 
 import {
   QrCode,
-  Bell,
-  HelpCircle,
   User,
   Send,
   Building,
   Smartphone,
   Wallet,
   ArrowLeftRight,
-  CreditCard,
   Home,
   History,
   Shield,
-  SmartphoneCharging,
-  Tv,
-  Fuel,
-  ChevronRight,
   CheckCircle,
   Clock,
   XCircle,
@@ -31,7 +23,6 @@ import {
   IndianRupee,
   Eye,
   EyeOff,
-  ArrowUpRight,
   X,
   AlertTriangle,
   Loader2,
@@ -39,13 +30,35 @@ import {
   UserCheck,
 } from 'lucide-react';
 
-export default function PhonePeDashboard() {
+const RUPEE = '\u20B9';
+
+const formatDisplayINR = (amount) => {
+  const numericAmount = Number(amount);
+
+  if (!Number.isFinite(numericAmount)) {
+    return `${RUPEE}0.00`;
+  }
+
+  return `${RUPEE}${numericAmount.toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+};
+
+export default function PhonePeDashboard({
+  initialWorkspaceMode = 'USER',
+}) {
   const navigate = useNavigate();
 
+  // =========================================================
   // USER IDENTITY & SERVER STATE
+  // =========================================================
+
   let savedUser = {};
+
   try {
-    savedUser = JSON.parse(localStorage.getItem('paymentUser')) || {};
+    savedUser =
+      JSON.parse(localStorage.getItem('paymentUser')) || {};
   } catch {
     savedUser = {};
   }
@@ -53,92 +66,256 @@ export default function PhonePeDashboard() {
   const [currentUser, setCurrentUser] = useState(savedUser);
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState([]);
-  const isSecurityTestTransaction = (tx) => {
-  const transactionId = String(
-    tx?.transactionId || tx?.id || ''
-  ).toUpperCase();
-
-  const idempotencyKey = String(
-    tx?.idempotencyKey || ''
-  ).toUpperCase();
-
-  const type = String(tx?.type || '').toUpperCase();
-
-  return (
-    transactionId.startsWith('TX-SCAN-') ||
-    transactionId.startsWith('SIM-') ||
-    idempotencyKey.startsWith('API3-SCAN-') ||
-    idempotencyKey.startsWith('API6-SCAN-') ||
-    type === 'SCAN'
-  );
-};
-
-const visibleTransactions = transactions.filter(
-  (tx) => !isSecurityTestTransaction(tx)
-);
   const [isLoadingData, setIsLoadingData] = useState(true);
 
-  // Add Money Modal State
-  const [showAddMoneyModal, setShowAddMoneyModal] = useState(false);
-  const [addMoneyAmount, setAddMoneyAmount] = useState('1000');
-  const [addMoneyMessage, setAddMoneyMessage] = useState('');
-  const [isAddingMoney, setIsAddingMoney] = useState(false);
-  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+  const isSecurityTestTransaction = (tx) => {
+    const transactionId = String(
+      tx?.transactionId || tx?.id || ''
+    ).toUpperCase();
 
-  const [paymentResult, setPaymentResult] = useState(null);
+    const idempotencyKey = String(
+      tx?.idempotencyKey || ''
+    ).toUpperCase();
 
-  const user = {
-    name: currentUser.name || savedUser.name || 'User',
-    mobile: currentUser.phone || savedUser.phone
-      ? `${String(currentUser.phone || savedUser.phone).slice(0, 2)}******${String(currentUser.phone || savedUser.phone).slice(-2)}`
-      : 'Not available',
-    email: currentUser.email || savedUser.email || 'Not available',
+    const type = String(
+      tx?.type || ''
+    ).toUpperCase();
+
+    return (
+      transactionId.startsWith('TX-SCAN-') ||
+      transactionId.startsWith('SIM-') ||
+      idempotencyKey.startsWith('API3-SCAN-') ||
+      idempotencyKey.startsWith('API6-SCAN-') ||
+      type === 'SCAN'
+    );
   };
 
-  const myUpiId = currentUser.upiId || savedUser.upiId || 'userA@upi';
+  const visibleTransactions = transactions.filter(
+    (tx) => !isSecurityTestTransaction(tx)
+  );
 
-  const [activeTab, setActiveTab] = useState('home');
-  const [workspaceMode, setWorkspaceMode] = useState('USER');
-const [showModeMenu, setShowModeMenu] = useState(false);
-  const [paymentMode, setPaymentMode] = useState('TO_MOBILE'); // 'TO_MOBILE' | 'TO_SELF'
-  const [showBalance, setShowBalance] = useState(true);
-  const [showQR, setShowQR] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
-  const [scannerMessage, setScannerMessage] = useState('');
+  // =========================================================
+  // ADD MONEY
+  // =========================================================
+
+  const [showAddMoneyModal, setShowAddMoneyModal] =
+    useState(false);
+
+  const [addMoneyAmount, setAddMoneyAmount] =
+    useState('1000');
+
+  const [addMoneyMessage, setAddMoneyMessage] =
+    useState('');
+
+  const [isAddingMoney, setIsAddingMoney] =
+    useState(false);
+
+  // =========================================================
+  // PAYMENT STATE
+  // =========================================================
+
+  const [isSubmittingPayment, setIsSubmittingPayment] =
+    useState(false);
+
+  const [paymentResult, setPaymentResult] =
+    useState(null);
+
+  // =========================================================
+  // USER DISPLAY
+  // =========================================================
+
+  const user = {
+    name:
+      currentUser.name ||
+      savedUser.name ||
+      'User',
+
+    mobile:
+      currentUser.phone ||
+      savedUser.phone
+        ? `${String(
+            currentUser.phone ||
+              savedUser.phone
+          ).slice(0, 2)}******${String(
+            currentUser.phone ||
+              savedUser.phone
+          ).slice(-2)}`
+        : 'Not available',
+
+    email:
+      currentUser.email ||
+      savedUser.email ||
+      'Not available',
+  };
+
+  const myUpiId =
+    currentUser.upiId ||
+    savedUser.upiId ||
+    'userA@upi';
+
+  // =========================================================
+  // WORKSPACE / NAVIGATION STATE
+  // =========================================================
+
+  const [workspaceMode, setWorkspaceMode] =
+    useState(() => {
+      const storedMode = localStorage.getItem(
+        'securepay_workspace_mode'
+      );
+
+      if (
+        storedMode === 'SECURITY' ||
+        storedMode === 'USER'
+      ) {
+        return storedMode;
+      }
+
+      return initialWorkspaceMode === 'SECURITY'
+        ? 'SECURITY'
+        : 'USER';
+    });
+
+  const [activeTab, setActiveTab] =
+    useState(() => {
+      const storedMode = localStorage.getItem(
+        'securepay_workspace_mode'
+      );
+
+      if (
+        storedMode === 'SECURITY' ||
+        initialWorkspaceMode === 'SECURITY'
+      ) {
+        return 'security';
+      }
+
+      return 'home';
+    });
+
+  const [showModeMenu, setShowModeMenu] =
+    useState(false);
+
+  // =========================================================
+  // WORKSPACE SWITCH
+  // =========================================================
+
+  const switchWorkspaceMode = (nextMode) => {
+    const normalizedMode =
+      nextMode === 'SECURITY'
+        ? 'SECURITY'
+        : 'USER';
+
+    setWorkspaceMode(normalizedMode);
+
+    // IMPORTANT:
+    // Workspace mode controls the visible workspace.
+    setActiveTab(
+      normalizedMode === 'SECURITY'
+        ? 'security'
+        : 'home'
+    );
+
+    // Persist workspace selection.
+    localStorage.setItem(
+      'securepay_workspace_mode',
+      normalizedMode
+    );
+
+    // Keep paymentUser.mode synchronized too.
+    try {
+      const saved =
+        JSON.parse(
+          localStorage.getItem('paymentUser')
+        ) || {};
+
+      localStorage.setItem(
+        'paymentUser',
+        JSON.stringify({
+          ...saved,
+          mode: normalizedMode,
+        })
+      );
+    } catch {
+      // securepay_workspace_mode is already persisted.
+    }
+
+    setShowModeMenu(false);
+  };
+
+  // =========================================================
+  // PAYMENT MODE
+  // =========================================================
+
+  const [paymentMode, setPaymentMode] =
+    useState('TO_MOBILE');
+
+  const [showBalance, setShowBalance] =
+    useState(true);
+
+  // =========================================================
+  // QR STATE
+  // =========================================================
+
+  const [showQR, setShowQR] =
+    useState(false);
+
+  const [showScanner, setShowScanner] =
+    useState(false);
+
+  const [scannerMessage, setScannerMessage] =
+    useState('');
+
   const scannerRef = useRef(null);
+
+  // =========================================================
+  // PAYMENT FORM
+  // =========================================================
 
   const [form, setForm] = useState({
     receiver: '',
     amount: '',
   });
 
-  const [message, setMessage] = useState('');
+  const [message, setMessage] =
+    useState('');
 
-  // Load authoritative data from backend server
+  // =========================================================
+  // LOAD SERVER DATA
+  // =========================================================
+
   const loadServerData = async () => {
     setIsLoadingData(true);
+
     try {
-      // Fetch authenticated user profile
       const meRes = await api.getMe();
+
       if (meRes?.user) {
         setCurrentUser(meRes.user);
       }
 
-      // Fetch server-side balance
-      const accRes = await api.getMyAccount();
+      const accRes =
+        await api.getMyAccount();
+
       if (accRes?.account) {
         setBalance(accRes.account.balance);
       }
 
-      // Fetch server-side transaction history
-      const txRes = await api.getMyTransactions();
+      const txRes =
+        await api.getMyTransactions();
+
       if (txRes?.transactions) {
-        setTransactions(txRes.transactions);
+        setTransactions(
+          txRes.transactions
+        );
       }
     } catch (err) {
-      console.warn('Backend connection error or unauthorized:', err);
-      // If unauthorized, redirect to login
-      if (err.response?.status === 401) {
+      console.warn(
+        'Backend connection error or unauthorized:',
+        err
+      );
+
+      if (
+        err.response?.status === 401
+      ) {
         navigate('/');
       }
     } finally {
@@ -150,47 +327,97 @@ const [showModeMenu, setShowModeMenu] = useState(false);
     loadServerData();
   }, []);
 
-  // AI Security Analysis State
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiAnalysisError, setAiAnalysisError] = useState(null);
-  const [aiAnalysisResult, setAiAnalysisResult] = useState(null);
+  // =========================================================
+  // AI SECURITY ANALYSIS
+  // =========================================================
+
+  const [isAnalyzing, setIsAnalyzing] =
+    useState(false);
+
+  const [aiAnalysisError, setAiAnalysisError] =
+    useState(null);
+
+  const [aiAnalysisResult, setAiAnalysisResult] =
+    useState(null);
+
+  const securityScore =
+    aiAnalysisResult?.securityScore ?? 82;
+
+  // =========================================================
+  // BANK DISPLAY
+  // =========================================================
 
   const bank = {
     name: 'State Bank of India',
     account: 'XXXX 4582',
   };
 
-  const securityScore = aiAnalysisResult?.securityScore ?? 82;
-
-  // =============================
+  // =========================================================
   // UPI VALIDATION
-  // =============================
+  // =========================================================
 
-  const isValidReceiver = (val) => {
-    const upiRegex = /^[a-zA-Z0-9._-]{2,50}@[a-zA-Z0-9.-]{2,50}$/;
-    const phoneRegex = /^[6-9]\d{9}$/;
-    const v = val.trim();
-    return upiRegex.test(v) || phoneRegex.test(v);
+  const isValidUpi = (val) => {
+    const upiRegex =
+      /^[a-zA-Z0-9._-]{2,50}@[a-zA-Z0-9.-]{2,50}$/;
+
+    return upiRegex.test(
+      String(val || '').trim()
+    );
   };
 
-  // =============================
-  // AI SECURITY ANALYSIS
-  // =============================
+  const isValidReceiver = (val) => {
+    const upiRegex =
+      /^[a-zA-Z0-9._-]{2,50}@[a-zA-Z0-9.-]{2,50}$/;
 
-  const analyzeTransactionSecurity = async (tx, apiResponsePayload) => {
+    const phoneRegex =
+      /^[6-9]\d{9}$/;
+
+    const v =
+      String(val || '').trim();
+
+    return (
+      upiRegex.test(v) ||
+      phoneRegex.test(v)
+    );
+  };
+
+  // =========================================================
+  // AI SECURITY ANALYSIS
+  // =========================================================
+
+  const analyzeTransactionSecurity = async (
+    tx,
+    apiResponsePayload
+  ) => {
     setIsAnalyzing(true);
     setAiAnalysisError(null);
 
     try {
-      const data = await api.analyzeSecurity(tx, apiResponsePayload);
+      const data =
+        await api.analyzeSecurity(
+          tx,
+          apiResponsePayload
+        );
 
-      if (data && data.success && data.analysis) {
-        setAiAnalysisResult(data.analysis);
+      if (
+        data &&
+        data.success &&
+        data.analysis
+      ) {
+        setAiAnalysisResult(
+          data.analysis
+        );
       } else {
-        throw new Error('Invalid analysis response format received.');
+        throw new Error(
+          'Invalid analysis response format received.'
+        );
       }
     } catch (err) {
-      console.error('Security analysis error:', err);
+      console.error(
+        'Security analysis error:',
+        err
+      );
+
       setAiAnalysisError(
         'AI Security Backend is currently unavailable. Ensure localhost:5002 is running.'
       );
@@ -199,44 +426,63 @@ const [showModeMenu, setShowModeMenu] = useState(false);
     }
   };
 
-  // =============================
-  // QR SCANNER
-  // =============================
+  // =========================================================
+  // QR FUNCTIONS
+  // =========================================================
 
   const extractUpiDetails = (qrText) => {
     try {
-      const text = String(qrText || '').trim();
+      const text =
+        String(qrText || '').trim();
 
-      if (!text.toLowerCase().startsWith('upi://pay')) {
+      if (
+        !text
+          .toLowerCase()
+          .startsWith('upi://pay')
+      ) {
         return null;
       }
 
       const url = new URL(text);
-      const upiId = url.searchParams.get('pa');
-      const encodedName = url.searchParams.get('pn');
+      const upiId =
+        url.searchParams.get('pa');
 
-      if (!upiId || !isValidUpi(upiId)) {
+      const encodedName =
+        url.searchParams.get('pn');
+
+      if (
+        !upiId ||
+        !isValidUpi(upiId)
+      ) {
         return null;
       }
 
-      let name = upiId.split('@')[0];
+      let name =
+        upiId.split('@')[0];
 
       if (encodedName) {
         try {
-          name = decodeURIComponent(encodedName);
+          name =
+            decodeURIComponent(
+              encodedName
+            );
         } catch {
           name = encodedName;
         }
       }
 
-      return { upiId, name };
+      return {
+        upiId,
+        name,
+      };
     } catch {
       return null;
     }
   };
 
   const stopQRScanner = async () => {
-    const scanner = scannerRef.current;
+    const scanner =
+      scannerRef.current;
 
     try {
       if (scanner) {
@@ -247,7 +493,10 @@ const [showModeMenu, setShowModeMenu] = useState(false);
         await scanner.clear();
       }
     } catch (error) {
-      console.warn('QR scanner cleanup:', error);
+      console.warn(
+        'QR scanner cleanup:',
+        error
+      );
     } finally {
       scannerRef.current = null;
       setShowScanner(false);
@@ -258,76 +507,108 @@ const [showModeMenu, setShowModeMenu] = useState(false);
     setScannerMessage('');
     setShowScanner(true);
 
-    window.setTimeout(async () => {
-      try {
-        const scanner = new Html5Qrcode('qr-reader');
-        scannerRef.current = scanner;
-
-        await scanner.start(
-          { facingMode: 'environment' },
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1,
-          },
-          async (decodedText) => {
-            const details = extractUpiDetails(decodedText);
-
-            if (!details) {
-              setScannerMessage(
-                'Invalid UPI QR. Please scan a valid UPI payment QR.'
-              );
-              return;
-            }
-
-            try {
-              if (scanner.isScanning) {
-                await scanner.stop();
-              }
-
-              await scanner.clear();
-            } catch (error) {
-              console.warn('QR scanner stop:', error);
-            } finally {
-              scannerRef.current = null;
-            }
-
-            setPaymentMode('TO_MOBILE');
-            setForm((prev) => ({
-              ...prev,
-              receiver: details.upiId,
-            }));
-
-            setScannerMessage(
-              `QR scanned successfully. ${details.name} | ${details.upiId}`
+    window.setTimeout(
+      async () => {
+        try {
+          const scanner =
+            new Html5Qrcode(
+              'qr-reader'
             );
 
-            setShowScanner(false);
-            setActiveTab('pay');
-          },
-          () => {
-            // Decode misses are normal while scanning.
-          }
-        );
-      } catch (error) {
-        console.error('QR scanner error:', error);
-        setScannerMessage(
-          'Camera access failed. Allow camera permission and try again.'
-        );
-      }
-    }, 250);
+          scannerRef.current =
+            scanner;
+
+          await scanner.start(
+            { facingMode: 'environment' },
+            {
+              fps: 10,
+              qrbox: {
+                width: 250,
+                height: 250,
+              },
+              aspectRatio: 1,
+            },
+            async (decodedText) => {
+              const details =
+                extractUpiDetails(
+                  decodedText
+                );
+
+              if (!details) {
+                setScannerMessage(
+                  'Invalid UPI QR. Please scan a valid UPI payment QR.'
+                );
+
+                return;
+              }
+
+              try {
+                if (
+                  scanner.isScanning
+                ) {
+                  await scanner.stop();
+                }
+
+                await scanner.clear();
+              } catch (error) {
+                console.warn(
+                  'QR scanner stop:',
+                  error
+                );
+              } finally {
+                scannerRef.current =
+                  null;
+              }
+
+              setPaymentMode(
+                'TO_MOBILE'
+              );
+
+              setForm((prev) => ({
+                ...prev,
+                receiver:
+                  details.upiId,
+              }));
+
+              setScannerMessage(
+                `QR scanned successfully. ${details.name} | ${details.upiId}`
+              );
+
+              setShowScanner(false);
+              setActiveTab('pay');
+            },
+            () => {
+              // Decode misses are normal.
+            }
+          );
+        } catch (error) {
+          console.error(
+            'QR scanner error:',
+            error
+          );
+
+          setScannerMessage(
+            'Camera access failed. Allow camera permission and try again.'
+          );
+        }
+      },
+      250
+    );
   };
 
   useEffect(() => {
     return () => {
-      const scanner = scannerRef.current;
+      const scanner =
+        scannerRef.current;
 
       if (scanner) {
         scanner
           .stop()
           .catch(() => {})
           .finally(() => {
-            scanner.clear().catch(() => {});
+            scanner
+              .clear()
+              .catch(() => {});
           });
       }
     };
@@ -336,206 +617,418 @@ const [showModeMenu, setShowModeMenu] = useState(false);
   const openPayFlow = (mode) => {
     setPaymentMode(mode);
     setMessage('');
+
     if (mode === 'TO_SELF') {
-      setForm((prev) => ({ ...prev, receiver: myUpiId }));
+      setForm((prev) => ({
+        ...prev,
+        receiver: myUpiId,
+      }));
     } else {
-      setForm((prev) => ({ ...prev, receiver: '' }));
+      setForm((prev) => ({
+        ...prev,
+        receiver: '',
+      }));
     }
+
     setActiveTab('pay');
   };
 
-  // =============================
+  // =========================================================
+  // SECURITY GATE
+  // =========================================================
+
+  const [gateProcessing, setGateProcessing] =
+    useState(null);
+
+  const [gateStages, setGateStages] =
+    useState([]);
+
+  // =========================================================
   // PAYMENT
-  // =============================
-
-  const [gateProcessing, setGateProcessing] = useState(null);
-
-  const [gateStages, setGateStages] = useState([]);
+  // =========================================================
 
   const handlePayment = async (e) => {
     e.preventDefault();
+
     setMessage('');
     setGateStages([]);
 
-    const receiverUpi = paymentMode === 'TO_SELF' ? myUpiId : form.receiver.trim();
+    const receiverUpi =
+      paymentMode === 'TO_SELF'
+        ? myUpiId
+        : form.receiver.trim();
 
     if (!receiverUpi) {
-      setMessage(paymentMode === 'TO_SELF' ? 'Self UPI not found.' : 'Please enter a UPI ID or Phone Number.');
+      setMessage(
+        paymentMode === 'TO_SELF'
+          ? 'Self UPI not found.'
+          : 'Please enter a UPI ID or Phone Number.'
+      );
+
       return;
     }
 
-    if (!isValidReceiver(receiverUpi)) {
-      setMessage('Invalid format. Use name@upi or a 10-digit mobile number.');
+    if (
+      !isValidReceiver(
+        receiverUpi
+      )
+    ) {
+      setMessage(
+        'Invalid format. Use name@upi or a 10-digit mobile number.'
+      );
+
       return;
     }
 
     if (!form.amount) {
-      setMessage('Please enter an amount.');
+      setMessage(
+        'Please enter an amount.'
+      );
+
       return;
     }
 
-    const amount = Number(form.amount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setMessage('Amount must be greater than ₹0.');
+    const amount =
+      Number(form.amount);
+
+    if (
+      !Number.isFinite(amount) ||
+      amount <= 0
+    ) {
+      setMessage(
+        `Amount must be greater than ${RUPEE}0.`
+      );
+
       return;
     }
 
     setIsSubmittingPayment(true);
-    setGateProcessing('Initiating Secure Transaction...');
-    setGateStages(['Auth Check', 'Balance Check']);
+
+    setGateProcessing(
+      'Initiating Secure Transaction...'
+    );
+
+    setGateStages([
+      'Auth Check',
+      'Balance Check',
+    ]);
 
     try {
-      // Simulate visual progress of the real gate
-      await new Promise(r => setTimeout(r, 600));
-      setGateStages(prev => [...prev, 'Risk Analysis']);
-      setGateProcessing('Evaluating Security Gate...');
-      const idempotencyKey = `idemp-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-      const res = await api.sendPayment({
-        receiverUpi,
-        amount,
-        idempotencyKey,
-        note: paymentMode === 'TO_SELF' ? 'Self Transfer' : undefined,
-      });
+      await new Promise(
+        (r) => setTimeout(r, 600)
+      );
 
-      setGateProcessing('APPROVED');
-      setGateStages(prev => [...prev, 'Gate Passed']);
+      setGateStages(
+        (prev) => [
+          ...prev,
+          'Risk Analysis',
+        ]
+      );
 
-      if (res && res.success) {
-        setBalance(res.balance);
-        setForm({ receiver: paymentMode === 'TO_SELF' ? myUpiId : '', amount: '' });
+      setGateProcessing(
+        'Evaluating Security Gate...'
+      );
+
+      const idempotencyKey =
+        `idemp-${Date.now()}-${Math.floor(
+          1000 + Math.random() * 9000
+        )}`;
+
+      const res =
+        await api.sendPayment({
+          receiverUpi,
+          amount,
+          idempotencyKey,
+          note:
+            paymentMode ===
+            'TO_SELF'
+              ? 'Self Transfer'
+              : undefined,
+        });
+
+      setGateProcessing(
+        'APPROVED'
+      );
+
+      setGateStages(
+        (prev) => [
+          ...prev,
+          'Gate Passed',
+        ]
+      );
+
+      if (
+        res &&
+        res.success
+      ) {
+        setBalance(
+          res.balance
+        );
+
+        setForm({
+          receiver:
+            paymentMode ===
+            'TO_SELF'
+              ? myUpiId
+              : '',
+          amount: '',
+        });
+
         setMessage('');
 
         setPaymentResult({
           type: 'success',
           amount,
-          receiver: res.transaction?.receiverName || receiverUpi,
-          transactionId: res.transaction?.transactionId || res.transaction?.id || 'N/A',
-          securityScore: res.securityScore,
-          decision: res.decision,
-          createdAt: res.transaction?.createdAt
+          receiver:
+            res.transaction
+              ?.receiverName ||
+            receiverUpi,
+          transactionId:
+            res.transaction
+              ?.transactionId ||
+            res.transaction
+              ?.id ||
+            'N/A',
+          securityScore:
+            res.securityScore,
+          decision:
+            res.decision,
+          createdAt:
+            res.transaction
+              ?.createdAt,
         });
 
-        if (navigator.vibrate) {
-          navigator.vibrate([120, 60, 120]);
+        if (
+          navigator.vibrate
+        ) {
+          navigator.vibrate([
+            120,
+            60,
+            120,
+          ]);
         }
 
-        const txRes = await api.getMyTransactions();
+        const txRes =
+          await api.getMyTransactions();
 
-        if (txRes?.transactions) {
-          setTransactions(txRes.transactions);
+        if (
+          txRes?.transactions
+        ) {
+          setTransactions(
+            txRes.transactions
+          );
         }
 
         await analyzeTransactionSecurity(
           res.transaction,
           {
             statusCode: 200,
-            statusMessage: 'Payment Processed Successfully',
-            timestamp: new Date().toISOString(),
+            statusMessage:
+              'Payment Processed Successfully',
+            timestamp:
+              new Date().toISOString(),
           }
         );
       }
     } catch (err) {
-      console.error('Payment error:', err);
-      setGateProcessing('BLOCKED');
+      console.error(
+        'Payment error:',
+        err
+      );
 
-      const data = err.response?.data || {};
-      const errMsg = data.error || 'Payment processing failed.';
+      setGateProcessing(
+        'BLOCKED'
+      );
+
+      const data =
+        err.response?.data ||
+        {};
+
+      const errMsg =
+        data.error ||
+        'Payment processing failed.';
 
       setMessage('');
 
       setPaymentResult({
         type: 'error',
         amount,
-        receiver: receiverUpi,
+        receiver:
+          receiverUpi,
         transactionId: null,
         error: errMsg,
         reason: data.reason,
-        securityScore: data.securityScore,
-        decision: data.decision || 'BLOCKED'
+        securityScore:
+          data.securityScore,
+        decision:
+          data.decision ||
+          'BLOCKED',
       });
 
-      if (navigator.vibrate) {
-        navigator.vibrate([200, 80, 200]);
+      if (
+        navigator.vibrate
+      ) {
+        navigator.vibrate([
+          200,
+          80,
+          200,
+        ]);
       }
     } finally {
       setIsSubmittingPayment(false);
     }
   };
 
-  const handleAddMoney = async (e) => {
-    e?.preventDefault();
-    setAddMoneyMessage('');
-    const amt = Number(addMoneyAmount);
+  // =========================================================
+  // ADD MONEY
+  // =========================================================
 
-    if (!amt || !Number.isFinite(amt) || amt <= 0) {
-      setAddMoneyMessage('Please enter a valid amount greater than ₹0.');
+  const handleAddMoney = async (
+    e
+  ) => {
+    e?.preventDefault();
+
+    setAddMoneyMessage('');
+
+    const amt =
+      Number(addMoneyAmount);
+
+    if (
+      !amt ||
+      !Number.isFinite(amt) ||
+      amt <= 0
+    ) {
+      setAddMoneyMessage(
+        `Please enter a valid amount greater than ${RUPEE}0.`
+      );
+
       return;
     }
 
     setIsAddingMoney(true);
+
     try {
-      const res = await api.addMoney(amt);
-      if (res && res.success) {
-        setBalance(res.balance);
-        setAddMoneyMessage(`₹${amt.toFixed(2)} added successfully!`);
-        setTimeout(() => {
-          setShowAddMoneyModal(false);
-          setAddMoneyMessage('');
-        }, 1200);
+      const res =
+        await api.addMoney(amt);
+
+      if (
+        res &&
+        res.success
+      ) {
+        setBalance(
+          res.balance
+        );
+
+        setAddMoneyMessage(
+          `${RUPEE}${amt.toFixed(
+            2
+          )} added successfully!`
+        );
+
+        setTimeout(
+          () => {
+            setShowAddMoneyModal(
+              false
+            );
+
+            setAddMoneyMessage('');
+          },
+          1200
+        );
       }
     } catch (err) {
-      const errMsg = err.response?.data?.error || 'Failed to add money.';
-      setAddMoneyMessage(errMsg);
+      const errMsg =
+        err.response?.data?.error ||
+        'Failed to add money.';
+
+      setAddMoneyMessage(
+        errMsg
+      );
     } finally {
       setIsAddingMoney(false);
     }
   };
 
-  // =============================
-  // STATUS ICON & STYLING
-  // =============================
+  // =========================================================
+  // STATUS
+  // =========================================================
 
-  const statusIcon = (status) => {
-    const s = String(status || '').toUpperCase();
-    if (s === 'COMPLETED' || s === 'SUCCESS') {
-      return <CheckCircle size={18} />;
+  const statusIcon = (
+    status
+  ) => {
+    const s =
+      String(status || '')
+        .toUpperCase();
+
+    if (
+      s === 'COMPLETED' ||
+      s === 'SUCCESS'
+    ) {
+      return (
+        <CheckCircle size={18} />
+      );
     }
+
     if (s === 'PENDING') {
-      return <Clock size={18} />;
+      return (
+        <Clock size={18} />
+      );
     }
-    return <XCircle size={18} />;
+
+    return (
+      <XCircle size={18} />
+    );
   };
 
-  const statusClass = (status) => {
-    const s = String(status || '').toUpperCase();
-    if (s === 'COMPLETED' || s === 'SUCCESS') {
+  const statusClass = (
+    status
+  ) => {
+    const s =
+      String(status || '')
+        .toUpperCase();
+
+    if (
+      s === 'COMPLETED' ||
+      s === 'SUCCESS'
+    ) {
       return 'payment-status completed';
     }
+
     if (s === 'PENDING') {
       return 'payment-status pending';
     }
+
     return 'payment-status failed';
   };
 
-  const getReceiverLabel = (tx) => {
-    if (tx.receiverName && tx.receiverUpi) {
+  const getReceiverLabel = (
+    tx
+  ) => {
+    if (
+      tx.receiverName &&
+      tx.receiverUpi
+    ) {
       return `To: ${tx.receiverName} (${tx.receiverUpi})`;
     }
+
     if (tx.receiverUpi) {
       return `To: ${tx.receiverUpi}`;
     }
+
     if (tx.receiver) {
       return `To: ${tx.receiver}`;
     }
+
     if (tx.receiver_upi) {
       return `To: ${tx.receiver_upi}`;
     }
+
     return 'To: N/A';
   };
 
-  // =============================
+  // =========================================================
   // HOME
-  // =============================
+  // =========================================================
 
   const renderHome = () => (
     <>
@@ -546,47 +1039,64 @@ const [showModeMenu, setShowModeMenu] = useState(false);
         </div>
 
         <div className="quick-actions">
+
           <button
             type="button"
-            onClick={() => openPayFlow('TO_MOBILE')}
+            onClick={() =>
+              openPayFlow('TO_MOBILE')
+            }
             className="quick-action"
           >
             <div className="quick-icon">
               <Smartphone size={21} />
             </div>
+
             <span>To Mobile</span>
           </button>
 
           <button
             type="button"
-            onClick={() => openPayFlow('TO_MOBILE')}
+            onClick={() =>
+              openPayFlow('TO_MOBILE')
+            }
             className="quick-action"
           >
             <div className="quick-icon">
               <Building size={21} />
             </div>
+
             <span>To Bank / UPI</span>
           </button>
 
           <button
             type="button"
-            onClick={() => openPayFlow('TO_SELF')}
+            onClick={() =>
+              openPayFlow('TO_SELF')
+            }
             className="quick-action"
           >
             <div className="quick-icon">
-              <ArrowLeftRight size={21} />
+              <ArrowLeftRight
+                size={21}
+              />
             </div>
+
             <span>To Self</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setActiveTab('bank')}
+            onClick={() =>
+              setActiveTab('bank')
+            }
             className="quick-action"
           >
             <div className="quick-icon">
-              <IndianRupee size={21} />
+              <IndianRupee
+                size={21}
+              />
             </div>
+
             <span>Balance</span>
           </button>
 
@@ -598,8 +1108,10 @@ const [showModeMenu, setShowModeMenu] = useState(false);
             <div className="quick-icon">
               <QrCode size={21} />
             </div>
+
             <span>Scan QR</span>
           </button>
+
         </div>
       </section>
 
@@ -631,15 +1143,26 @@ const [showModeMenu, setShowModeMenu] = useState(false);
         </div>
 
         <div className="wallet-content">
-          <strong>SecurePay Wallet</strong>
-          <span>Fast and secure payments</span>
+          <strong>
+            SecurePay Wallet
+          </strong>
+
+          <span>
+            Fast and secure payments
+          </span>
         </div>
 
-        <button type="button" onClick={() => setShowAddMoneyModal(true)}>
+        <button
+          type="button"
+          onClick={() =>
+            setShowAddMoneyModal(
+              true
+            )
+          }
+        >
           Add Money
         </button>
       </section>
-
 
       <section className="phonepe-card">
         <div className="section-heading">
@@ -649,38 +1172,77 @@ const [showModeMenu, setShowModeMenu] = useState(false);
             type="button"
             className="view-all-button"
             onClick={() =>
-              setActiveTab('history')
+              setActiveTab(
+                'history'
+              )
             }
           >
             View All
           </button>
         </div>
 
-       <div className="recent-list">
-  {visibleTransactions
-    .slice(0, 3)
-    .map((tx) => (
+        <div className="recent-list">
+          {visibleTransactions
+            .slice(0, 3)
+            .map((tx) => (
               <div
                 className="recent-item"
-                key={tx.id || tx.transactionId}
+                key={
+                  tx.id ||
+                  tx.transactionId
+                }
               >
                 <div className="recent-avatar">
                   <Send size={17} />
                 </div>
 
                 <div className="recent-info">
-                  <strong>{getReceiverLabel(tx)}</strong>
-                  <span>{tx.date || (tx.createdAt ? new Date(tx.createdAt).toLocaleDateString() : 'N/A')}</span>
+                  <strong>
+                    {getReceiverLabel(tx)}
+                  </strong>
+
+                  <span>
+                    {tx.date ||
+                      (tx.createdAt
+                        ? new Date(
+                            tx.createdAt
+                          ).toLocaleDateString()
+                        : 'N/A')}
+                  </span>
                 </div>
 
                 <div className="recent-amount">
-                  <strong style={{ color: tx.type === 'RECEIVED' ? '#16a34a' : 'inherit' }}>
-                    {tx.type === 'RECEIVED' ? '+' : '-'}{formatINR(tx.amount)}
+                  <strong
+                    style={{
+                      color:
+                        tx.type ===
+                        'RECEIVED'
+                          ? '#16a34a'
+                          : 'inherit',
+                    }}
+                  >
+                    {tx.type ===
+                    'RECEIVED'
+                      ? '+'
+                      : '-'}
+                    {formatDisplayINR(
+                      tx.amount
+                    )}
                   </strong>
 
-                  <span className={statusClass(tx.status)}>
-                    {statusIcon(tx.status)}
-                    {String(tx.status || 'COMPLETED').toUpperCase()}
+                  <span
+                    className={statusClass(
+                      tx.status
+                    )}
+                  >
+                    {statusIcon(
+                      tx.status
+                    )}
+
+                    {String(
+                      tx.status ||
+                        'COMPLETED'
+                    ).toUpperCase()}
                   </span>
                 </div>
               </div>
@@ -690,17 +1252,25 @@ const [showModeMenu, setShowModeMenu] = useState(false);
     </>
   );
 
-  // =============================
+  // =========================================================
   // PAY
-  // =============================
+  // =========================================================
 
   const renderPay = () => (
     <section className="phonepe-card pay-section">
+
       <div className="page-title-row">
         <div>
-          <h2>{paymentMode === 'TO_SELF' ? 'Self Transfer' : 'Send Money'}</h2>
+          <h2>
+            {paymentMode ===
+            'TO_SELF'
+              ? 'Self Transfer'
+              : 'Send Money'}
+          </h2>
+
           <p>
-            {paymentMode === 'TO_SELF'
+            {paymentMode ===
+            'TO_SELF'
               ? 'Transfer funds to your own linked account / UPI ID'
               : 'Make a secure mock payment to mobile or UPI'}
           </p>
@@ -713,53 +1283,99 @@ const [showModeMenu, setShowModeMenu] = useState(false);
       </div>
 
       <div className="transfer-mode-selector">
+
         <button
           type="button"
-          className={`mode-tab ${paymentMode === 'TO_MOBILE' ? 'active' : ''}`}
-          onClick={() => openPayFlow('TO_MOBILE')}
+          className={`mode-tab ${
+            paymentMode ===
+            'TO_MOBILE'
+              ? 'active'
+              : ''
+          }`}
+          onClick={() =>
+            openPayFlow(
+              'TO_MOBILE'
+            )
+          }
         >
-          <Smartphone size={16} /> To Mobile / UPI
+          <Smartphone size={16} />
+          To Mobile / UPI
         </button>
+
         <button
           type="button"
-          className={`mode-tab ${paymentMode === 'TO_SELF' ? 'active' : ''}`}
-          onClick={() => openPayFlow('TO_SELF')}
+          className={`mode-tab ${
+            paymentMode ===
+            'TO_SELF'
+              ? 'active'
+              : ''
+          }`}
+          onClick={() =>
+            openPayFlow(
+              'TO_SELF'
+            )
+          }
         >
-          <UserCheck size={16} /> To Self Account
+          <UserCheck size={16} />
+          To Self Account
         </button>
+
       </div>
 
       <form
         onSubmit={handlePayment}
         className="payment-form"
       >
+
         <label>
-          {paymentMode === 'TO_SELF' ? 'Destination Account (Your UPI)' : 'Receiver UPI ID / Phone Number'}
+          {paymentMode ===
+          'TO_SELF'
+            ? 'Destination Account (Your UPI)'
+            : 'Receiver UPI ID / Phone Number'}
 
           <div className="upi-input-row">
+
             <input
               type="text"
-              placeholder={paymentMode === 'TO_SELF' ? myUpiId : 'UPI ID or 10-digit Mobile'}
-              value={paymentMode === 'TO_SELF' ? myUpiId : form.receiver}
-              disabled={paymentMode === 'TO_SELF'}
+              placeholder={
+                paymentMode ===
+                'TO_SELF'
+                  ? myUpiId
+                  : 'UPI ID or 10-digit Mobile'
+              }
+              value={
+                paymentMode ===
+                'TO_SELF'
+                  ? myUpiId
+                  : form.receiver
+              }
+              disabled={
+                paymentMode ===
+                'TO_SELF'
+              }
               onChange={(e) =>
                 setForm({
                   ...form,
-                  receiver: e.target.value,
+                  receiver:
+                    e.target.value,
                 })
               }
             />
 
-            {paymentMode !== 'TO_SELF' && (
+            {paymentMode !==
+              'TO_SELF' && (
               <button
                 type="button"
                 className="scan-qr-button"
-                onClick={startQRScanner}
+                onClick={
+                  startQRScanner
+                }
               >
                 <QrCode size={18} />
                 Scan QR
               </button>
             )}
+
           </div>
         </label>
 
@@ -778,7 +1394,8 @@ const [showModeMenu, setShowModeMenu] = useState(false);
               onChange={(e) =>
                 setForm({
                   ...form,
-                  amount: e.target.value,
+                  amount:
+                    e.target.value,
                 })
               }
             />
@@ -789,79 +1406,126 @@ const [showModeMenu, setShowModeMenu] = useState(false);
           Available balance:
 
           <strong>
-            ₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            {formatDisplayINR(
+              balance
+            )}
           </strong>
         </div>
+
         <div className="smart-payment-recommendation">
-  <div className="smart-recommendation-header">
-    <span>🤖 SecurePay Assistant</span>
 
-    <span className="recommendation-score">
-      Security Score: {securityScore}/100
-    </span>
-  </div>
+          <div className="smart-recommendation-header">
+            <span>
+              SecurePay Assistant
+            </span>
 
-  <div className="smart-recommendation-content">
-    <strong>Recommended Payment Method</strong>
+            <span className="recommendation-score">
+              Security Score:{' '}
+              {securityScore}/100
+            </span>
+          </div>
 
-    {securityScore >= 80 ? (
-      <>
-        <div className="recommended-method">
-          🟢 To Mobile / UPI
+          <div className="smart-recommendation-content">
+
+            <strong>
+              Recommended Payment Method
+            </strong>
+
+            {securityScore >=
+            80 ? (
+              <>
+                <div className="recommended-method">
+                  To Mobile / UPI
+                </div>
+
+                <p>
+                  Your security score is
+                  strong. UPI/mobile payment is
+                  recommended.
+                </p>
+              </>
+            ) : securityScore >=
+              60 ? (
+              <>
+                <div className="recommended-method">
+                  Bank Transfer
+                </div>
+
+                <p>
+                  Moderate security risk
+                  detected. Additional
+                  verification is recommended.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="recommended-method">
+                  Do Not Proceed
+                </div>
+
+                <p>
+                  The security score is low.
+                  Review the security findings
+                  before proceeding.
+                </p>
+              </>
+            )}
+
+          </div>
         </div>
-
-        <p>
-          Your security score is strong.
-          UPI/mobile payment is recommended.
-        </p>
-      </>
-    ) : securityScore >= 60 ? (
-      <>
-        <div className="recommended-method">
-          🟡 Bank Transfer
-        </div>
-
-        <p>
-          Moderate security risk detected.
-          Additional verification is recommended.
-        </p>
-      </>
-    ) : (
-      <>
-        <div className="recommended-method">
-          🔴 Do Not Proceed
-        </div>
-
-        <p>
-          The security score is low.
-          Review the security findings before proceeding.
-        </p>
-      </>
-    )}
-  </div>
-</div>
 
         <button
-          className="send-payment-button"
-          type="submit"
-          disabled={isAnalyzing || isSubmittingPayment}
-        >
+  className="send-payment-button"
+  type="submit"
+  disabled={isSubmittingPayment}
+>
           <Send size={19} />
-          {isSubmittingPayment ? (gateProcessing || 'Processing...') : isAnalyzing ? 'Analyzing...' : paymentMode === 'TO_SELF' ? 'Transfer to Self' : 'Pay Securely'}
+
+          {isSubmittingPayment
+            ? gateProcessing ||
+              'Processing...'
+            : isAnalyzing
+              ? 'Analyzing...'
+              : paymentMode ===
+                  'TO_SELF'
+                ? 'Transfer to Self'
+                : 'Pay Securely'}
         </button>
 
         {gateProcessing && (
           <div className="security-gate-animation">
-            <div className={`gate-status ${gateProcessing === 'BLOCKED' ? 'blocked' : gateProcessing === 'APPROVED' ? 'approved' : 'analyzing'}`}>
-              <Shield size={16} /> {gateProcessing}
+
+            <div
+              className={`gate-status ${
+                gateProcessing ===
+                'BLOCKED'
+                  ? 'blocked'
+                  : gateProcessing ===
+                      'APPROVED'
+                    ? 'approved'
+                    : 'analyzing'
+              }`}
+            >
+              <Shield size={16} />
+              {gateProcessing}
             </div>
-            {gateStages.length > 0 && (
+
+            {gateStages.length >
+              0 && (
               <div className="gate-stages">
-                {gateStages.map((s, i) => (
-                  <span key={i} className="gate-stage-tag">{s}</span>
-                ))}
+                {gateStages.map(
+                  (s, i) => (
+                    <span
+                      key={i}
+                      className="gate-stage-tag"
+                    >
+                      {s}
+                    </span>
+                  )
+                )}
               </div>
             )}
+
           </div>
         )}
 
@@ -871,6 +1535,7 @@ const [showModeMenu, setShowModeMenu] = useState(false);
             {message}
           </div>
         )}
+
       </form>
 
       <div className="security-notice">
@@ -890,120 +1555,183 @@ const [showModeMenu, setShowModeMenu] = useState(false);
           </p>
         </div>
       </div>
+
     </section>
   );
 
-  // =============================
+  // =========================================================
   // HISTORY
-  // =============================
+  // =========================================================
 
- const renderHistory = () => (
-  <section className="phonepe-card">
-    <div className="page-title-row">
-      <div>
-        <h2>Payment History</h2>
-        <p>Your recent transactions</p>
+  const renderHistory = () => (
+    <section className="phonepe-card">
+
+      <div className="page-title-row">
+
+        <div>
+          <h2>
+            Payment History
+          </h2>
+
+          <p>
+            Your recent transactions
+          </p>
+        </div>
+
+        <History size={24} />
       </div>
 
-      <History size={24} />
-    </div>
-
-    <div className="history-list">
-      {visibleTransactions.map((tx) => (
-        <div
-          className="history-item"
-          key={tx.id || tx.transactionId}
-        >
-          <div className="history-left">
-            <div className="history-icon">
-              <Send size={18} />
-            </div>
-
-            <div>
-              <strong>{getReceiverLabel(tx)}</strong>
-
-              <span>
-                ID: {tx.id || tx.transactionId}
-              </span>
-
-              <small>
-                {tx.date ||
-                  (tx.createdAt
-                    ? new Date(tx.createdAt).toLocaleString()
-                    : 'N/A')}
-              </small>
-            </div>
-          </div>
-
-          <div className="history-right">
-            <strong
-              style={{
-                color:
-                  tx.type === 'RECEIVED'
-                    ? '#16a34a'
-                    : 'inherit',
-              }}
+      <div className="history-list">
+        {visibleTransactions.map(
+          (tx) => (
+            <div
+              className="history-item"
+              key={
+                tx.id ||
+                tx.transactionId
+              }
             >
-              {tx.type === 'RECEIVED' ? '+' : '-'}
-              {formatINR(tx.amount)}
-            </strong>
 
-            <span className={statusClass(tx.status)}>
-              {statusIcon(tx.status)}
-              {String(
-                tx.status || 'COMPLETED'
-              ).toUpperCase()}
-            </span>
-          </div>
-        </div>
-      ))}
-    </div>
-  </section>
-);
+              <div className="history-left">
 
-  // =============================
+                <div className="history-icon">
+                  <Send size={18} />
+                </div>
+
+                <div>
+
+                  <strong>
+                    {getReceiverLabel(tx)}
+                  </strong>
+
+                  <span>
+                    ID:{' '}
+                    {tx.id ||
+                      tx.transactionId}
+                  </span>
+
+                  <small>
+                    {tx.date ||
+                      (tx.createdAt
+                        ? new Date(
+                            tx.createdAt
+                          ).toLocaleString()
+                        : 'N/A')}
+                  </small>
+
+                </div>
+
+              </div>
+
+              <div className="history-right">
+
+                <strong
+                  style={{
+                    color:
+                      tx.type ===
+                      'RECEIVED'
+                        ? '#16a34a'
+                        : 'inherit',
+                  }}
+                >
+                  {tx.type ===
+                  'RECEIVED'
+                    ? '+'
+                    : '-'}
+                  {formatDisplayINR(
+                    tx.amount
+                  )}
+                </strong>
+
+                <span
+                  className={statusClass(
+                    tx.status
+                  )}
+                >
+                  {statusIcon(
+                    tx.status
+                  )}
+
+                  {String(
+                    tx.status ||
+                      'COMPLETED'
+                  ).toUpperCase()}
+                </span>
+
+              </div>
+
+            </div>
+          )
+        )}
+      </div>
+
+    </section>
+  );
+
+  // =========================================================
   // BANK
-  // =============================
+  // =========================================================
 
   const renderBank = () => (
     <section className="phonepe-card">
+
       <div className="page-title-row">
+
         <div>
-          <h2>Bank Accounts</h2>
+          <h2>
+            Bank Accounts
+          </h2>
+
           <p>
             Linked accounts and balances
           </p>
         </div>
 
         <Building size={24} />
+
       </div>
 
       <div className="bank-account-card">
+
         <div className="bank-logo">
           <Building size={25} />
         </div>
 
         <div className="bank-details">
-          <strong>{bank.name}</strong>
+
+          <strong>
+            {bank.name}
+          </strong>
 
           <span>
-            Primary Account | {bank.account}
+            Primary Account |{' '}
+            {bank.account}
           </span>
+
         </div>
 
         <div className="bank-balance">
-          <small>Available</small>
+
+          <small>
+            Available
+          </small>
 
           <strong>
-            ₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            {formatDisplayINR(
+              balance
+            )}
           </strong>
+
         </div>
+
       </div>
 
       <div className="bank-security-info">
+
         <Shield size={20} />
 
         <div>
+
           <strong>
             Bank connection secured
           </strong>
@@ -1014,43 +1742,72 @@ const [showModeMenu, setShowModeMenu] = useState(false);
             No real banking information
             is used.
           </p>
+
         </div>
+
       </div>
 
       <div className="bank-security-info">
+
         <Wallet size={20} />
 
         <div>
+
           <strong>
             Server-Side Shared Ledger
           </strong>
 
           <p>
-            Current Account: <strong>{myUpiId}</strong>
+            Current Account:{' '}
+            <strong>
+              {myUpiId}
+            </strong>
           </p>
+
           <p>
-            Server Balance: <strong>₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+            Server Balance:{' '}
+            <strong>
+              {formatDisplayINR(
+                balance
+              )}
+            </strong>
           </p>
-          <p style={{ fontSize: '13px', color: '#64748b' }}>
-            Persisted in server-side SQLite database. Shared across all browsers and users.
+
+          <p
+            style={{
+              fontSize: '13px',
+              color: '#64748b',
+            }}
+          >
+            Persisted in server-side SQLite
+            database. Shared across all
+            browsers and users.
           </p>
+
         </div>
+
       </div>
+
     </section>
   );
 
-  // =============================
+  // =========================================================
   // SECURITY
-  // =============================
+  // =========================================================
 
   const renderSecurity = () => (
     <section className="phonepe-card security-page">
+
       <div className="page-title-row">
+
         <div>
-          <h2>Security Center</h2>
+          <h2>
+            Security Center
+          </h2>
 
           <p>
-            Monitor your payment security &amp; Gemini AI Analysis
+            Monitor your payment security &amp;
+            Gemini AI Analysis
           </p>
         </div>
 
@@ -1058,34 +1815,78 @@ const [showModeMenu, setShowModeMenu] = useState(false);
           <Shield size={15} />
           Protected
         </div>
+
       </div>
 
       {isAnalyzing && (
-        <div className="security-info-box" style={{ background: '#f0fdf4', borderColor: '#bbf7d0' }}>
-          <Loader2 size={20} className="animate-spin" style={{ color: '#16a34a' }} />
+        <div
+          className="security-info-box"
+          style={{
+            background:
+              '#f0fdf4',
+            borderColor:
+              '#bbf7d0',
+          }}
+        >
+          <Loader2
+            size={20}
+            className="animate-spin"
+            style={{
+              color: '#16a34a',
+            }}
+          />
+
           <div>
-            <strong>Analyzing Security...</strong>
-            <p>Gemini AI is scanning your payment transaction for potential threats.</p>
+            <strong>
+              Analyzing Security...
+            </strong>
+
+            <p>
+              Gemini AI is scanning your
+              payment transaction for
+              potential threats.
+            </p>
           </div>
         </div>
       )}
 
       {aiAnalysisError && (
-        <div className="security-info-box" style={{ background: '#fef2f2', borderColor: '#fecaca' }}>
-          <AlertTriangle size={20} style={{ color: '#dc2626' }} />
+        <div
+          className="security-info-box"
+          style={{
+            background:
+              '#fef2f2',
+            borderColor:
+              '#fecaca',
+          }}
+        >
+          <AlertTriangle
+            size={20}
+            style={{
+              color: '#dc2626',
+            }}
+          />
+
           <div>
-            <strong>AI Backend Warning</strong>
-            <p>{aiAnalysisError}</p>
+            <strong>
+              AI Backend Warning
+            </strong>
+
+            <p>
+              {aiAnalysisError}
+            </p>
           </div>
         </div>
       )}
 
       <div className="security-overview-card">
+
         <div className="security-overview-icon">
           <Shield size={28} />
         </div>
 
         <div>
+
           <span>
             Your Security Score
           </span>
@@ -1095,58 +1896,166 @@ const [showModeMenu, setShowModeMenu] = useState(false);
           </strong>
 
           <p>
-            {aiAnalysisResult?.riskLevel
+            {aiAnalysisResult
+              ?.riskLevel
               ? `Risk Level: ${aiAnalysisResult.riskLevel}`
               : 'Good security posture'}
           </p>
+
         </div>
+
       </div>
 
       {aiAnalysisResult && (
-        <div className="phonepe-card" style={{ marginTop: '16px', border: '1px solid #e2e8f0' }}>
-          <h3 className="security-section-title" style={{ marginTop: 0 }}>
+        <div
+          className="phonepe-card"
+          style={{
+            marginTop: '16px',
+            border:
+              '1px solid #e2e8f0',
+          }}
+        >
+
+          <h3
+            className="security-section-title"
+            style={{
+              marginTop: 0,
+            }}
+          >
             Gemini AI Security Insights
           </h3>
 
           {aiAnalysisResult.explanation && (
-            <div style={{ marginBottom: '12px' }}>
-              <strong>AI Analysis Explanation:</strong>
-              <p style={{ margin: '4px 0', fontSize: '14px', color: '#475569' }}>
-                {aiAnalysisResult.explanation}
+            <div
+              style={{
+                marginBottom: '12px',
+              }}
+            >
+
+              <strong>
+                AI Analysis Explanation:
+              </strong>
+
+              <p
+                style={{
+                  margin:
+                    '4px 0',
+                  fontSize:
+                    '14px',
+                  color:
+                    '#475569',
+                }}
+              >
+                {
+                  aiAnalysisResult.explanation
+                }
               </p>
+
             </div>
           )}
 
-          {Array.isArray(aiAnalysisResult.vulnerabilities) &&
-            aiAnalysisResult.vulnerabilities.length > 0 && (
-              <div style={{ marginBottom: '12px' }}>
-                <strong>AI Security Observations:</strong>
-                <ul style={{ paddingLeft: '20px', margin: '4px 0', fontSize: '14px', color: '#dc2626' }}>
-                  {aiAnalysisResult.vulnerabilities.map((vuln, idx) => (
-                    <li key={idx}>{typeof vuln === 'string' ? vuln : vuln.name || JSON.stringify(vuln)}</li>
-                  ))}
+          {Array.isArray(
+            aiAnalysisResult.vulnerabilities
+          ) &&
+            aiAnalysisResult
+              .vulnerabilities
+              .length > 0 && (
+              <div
+                style={{
+                  marginBottom:
+                    '12px',
+                }}
+              >
+
+                <strong>
+                  AI Security Observations:
+                </strong>
+
+                <ul
+                  style={{
+                    paddingLeft:
+                      '20px',
+                    margin:
+                      '4px 0',
+                    fontSize:
+                      '14px',
+                    color:
+                      '#dc2626',
+                  }}
+                >
+                  {aiAnalysisResult.vulnerabilities.map(
+                    (
+                      vuln,
+                      idx
+                    ) => (
+                      <li
+                        key={idx}
+                      >
+                        {typeof vuln ===
+                        'string'
+                          ? vuln
+                          : vuln.name ||
+                            JSON.stringify(
+                              vuln
+                            )}
+                      </li>
+                    )
+                  )}
                 </ul>
+
               </div>
             )}
 
-          {Array.isArray(aiAnalysisResult.recommendations) &&
-            aiAnalysisResult.recommendations.length > 0 && (
+          {Array.isArray(
+            aiAnalysisResult.recommendations
+          ) &&
+            aiAnalysisResult
+              .recommendations
+              .length > 0 && (
               <div>
-                <strong>Recommendations:</strong>
-                <ul style={{ paddingLeft: '20px', margin: '4px 0', fontSize: '14px', color: '#16a34a' }}>
-                  {aiAnalysisResult.recommendations.map((rec, idx) => (
-                    <li key={idx}>{rec}</li>
-                  ))}
+
+                <strong>
+                  Recommendations:
+                </strong>
+
+                <ul
+                  style={{
+                    paddingLeft:
+                      '20px',
+                    margin:
+                      '4px 0',
+                    fontSize:
+                      '14px',
+                    color:
+                      '#16a34a',
+                  }}
+                >
+                  {aiAnalysisResult.recommendations.map(
+                    (
+                      rec,
+                      idx
+                    ) => (
+                      <li
+                        key={idx}
+                      >
+                        {rec}
+                      </li>
+                    )
+                  )}
                 </ul>
+
               </div>
             )}
+
         </div>
       )}
 
       <div className="security-info-box">
+
         <Shield size={20} />
 
         <div>
+
           <strong>
             How SecurePay protects you
           </strong>
@@ -1157,7 +2066,9 @@ const [showModeMenu, setShowModeMenu] = useState(false);
             amount manipulation, replay attacks
             and unusual activity.
           </p>
+
         </div>
+
       </div>
 
       <h3 className="security-section-title">
@@ -1165,263 +2076,364 @@ const [showModeMenu, setShowModeMenu] = useState(false);
       </h3>
 
       <div className="security-transaction-list">
-        {visibleTransactions.map((tx) => {
-          const securityScoreForTransaction =
-  tx.securityScore !== null &&
-  tx.securityScore !== undefined
-    ? Number(tx.securityScore)
-    : null;
 
-const security = {
-  score: securityScoreForTransaction,
-  result:
-    securityScoreForTransaction === null
-      ? 'Not Analyzed'
-      : securityScoreForTransaction >= 80
-        ? 'Passed'
-        : securityScoreForTransaction >= 60
-          ? 'Review'
-          : 'High Risk',
-  issue:
-    securityScoreForTransaction === null
-      ? 'Security analysis not available for this transaction.'
-      : securityScoreForTransaction >= 80
-        ? 'No security issues detected'
-        : 'Security review recommended',
-};
+        {visibleTransactions.map(
+          (tx) => {
+            const securityScoreForTransaction =
+              tx.securityScore !==
+                null &&
+              tx.securityScore !==
+                undefined
+                ? Number(
+                    tx.securityScore
+                  )
+                : null;
 
-          return (
-            <div
-              className="security-transaction"
-              key={tx.id || tx.transactionId}
-            >
-              <div className="security-transaction-top">
-                <div>
-                  <strong>
-                    {getReceiverLabel(tx)}
-                  </strong>
+            const security = {
+              score:
+                securityScoreForTransaction,
 
-                  <span>ID: {tx.id || tx.transactionId}</span>
+              result:
+                securityScoreForTransaction ===
+                null
+                  ? 'Not Analyzed'
+                  : securityScoreForTransaction >=
+                    80
+                    ? 'Passed'
+                    : securityScoreForTransaction >=
+                      60
+                      ? 'Review'
+                      : 'High Risk',
+
+              issue:
+                securityScoreForTransaction ===
+                null
+                  ? 'Security analysis not available for this transaction.'
+                  : securityScoreForTransaction >=
+                    80
+                    ? 'No security issues detected'
+                    : 'Security review recommended',
+            };
+
+            return (
+              <div
+                className="security-transaction"
+                key={
+                  tx.id ||
+                  tx.transactionId
+                }
+              >
+
+                <div className="security-transaction-top">
+
+                  <div>
+
+                    <strong>
+                      {getReceiverLabel(
+                        tx
+                      )}
+                    </strong>
+
+                    <span>
+                      ID:{' '}
+                      {tx.id ||
+                        tx.transactionId}
+                    </span>
+
+                  </div>
+
+                  <div className="security-score-small">
+
+                    {security.score !==
+                    null
+                      ? `${security.score}/100`
+                      : 'Not Analyzed'}
+
+                  </div>
+
                 </div>
 
-                <div className="security-score-small">
-                  {security.score !== null
-  ? `${security.score}/100`
-  : 'Not Analyzed'}
-                </div>
-              </div>
+                <div className="security-result">
 
-              <div className="security-result">
-                <span
-                  className={
-                    security.result ===
+                  <span
+                    className={
+                      security.result ===
+                      'Passed'
+                        ? 'security-pass'
+                        : 'security-warning'
+                    }
+                  >
+                    {security.result ===
                     'Passed'
-                      ? 'security-pass'
-                      : 'security-warning'
-                  }
-                >
-                  {security.result ===
-                  'Passed'
-                    ? 'Security Passed'
-                    : 'Security Warning'}
-                </span>
+                      ? 'Security Passed'
+                      : 'Security Warning'}
+                  </span>
 
-                <p>{security.issue}</p>
+                  <p>
+                    {security.issue}
+                  </p>
+
+                </div>
+
+                <div className="security-tests-mini">
+
+                  <span>
+                    Authentication
+                  </span>
+
+                  <span>
+                    Authorization
+                  </span>
+
+                  <span>
+                    Amount Validation
+                  </span>
+
+                  <span>
+                    {security.result ===
+                    'Passed'
+                      ? 'Replay Protection'
+                      : 'Replay Detection'}
+                  </span>
+
+                </div>
+
               </div>
+            );
+          }
+        )}
 
-              <div className="security-tests-mini">
-                <span>
-                  Authentication
-                </span>
-
-                <span>
-                  Authorization
-                </span>
-
-                <span>
-                  Amount Validation
-                </span>
-
-                <span>
-                  {security.result ===
-                  'Passed'
-                    ? 'Replay Protection'
-                    : 'Replay Detection'}
-                </span>
-              </div>
-            </div>
-          );
-        })}
       </div>
+
     </section>
   );
 
-  // =============================
+  // =========================================================
   // MAIN RETURN
-  // =============================
+  // =========================================================
 
   return (
     <div className="phonepe-app">
 
-      {/* HEADER */}
+      {/* ===================================================
+          HEADER
+      =================================================== */}
 
-     <header className="phonepe-header">
+      <header className="phonepe-header">
 
-  <div className="phonepe-profile-section">
+        <div className="phonepe-profile-section">
 
-    <button
-      type="button"
-      className="phonepe-avatar profile-mode-button"
-      onClick={() => setShowModeMenu((prev) => !prev)}
-      title="Switch workspace"
-    >
-      <User size={20} />
-    </button>
+          <button
+            type="button"
+            className="phonepe-avatar profile-mode-button"
+            onClick={() =>
+              setShowModeMenu(
+                (prev) => !prev
+              )
+            }
+            title="Switch workspace"
+            aria-label="Switch workspace"
+          >
+            <User size={20} />
+          </button>
 
-    <div className="phonepe-profile-info">
-      <p className="phonepe-small-text">
-        Welcome back
-      </p>
+          <div className="phonepe-profile-info">
 
-      <p className="phonepe-user-name">
-        {user.name}
-      </p>
+            <p className="phonepe-small-text">
+              Welcome back
+            </p>
 
-      <p className="phonepe-small-text">
-        {user.mobile}
-      </p>
-    </div>
+            <p className="phonepe-user-name">
+              {user.name}
+            </p>
 
-    {showModeMenu && (
-      <div className="workspace-mode-menu">
+            <p className="phonepe-small-text">
+              {user.mobile}
+            </p>
 
-        <div className="workspace-mode-title">
-          Workspace
+          </div>
+
+          {showModeMenu && (
+            <div className="workspace-mode-menu">
+
+              <div className="workspace-mode-title">
+                Workspace
+              </div>
+
+              <button
+                type="button"
+                className={`workspace-mode-option ${
+                  workspaceMode ===
+                  'USER'
+                    ? 'selected'
+                    : ''
+                }`}
+                onClick={() =>
+                  switchWorkspaceMode(
+                    'USER'
+                  )
+                }
+              >
+
+                <div className="workspace-mode-icon user-mode-icon">
+                  <User size={18} />
+                </div>
+
+                <div>
+                  <strong>
+                    User
+                  </strong>
+
+                  <span>
+                    Payments &amp; account
+                  </span>
+                </div>
+
+              </button>
+
+              <button
+                type="button"
+                className={`workspace-mode-option ${
+                  workspaceMode ===
+                  'SECURITY'
+                    ? 'selected'
+                    : ''
+                }`}
+                onClick={() =>
+                  switchWorkspaceMode(
+                    'SECURITY'
+                  )
+                }
+              >
+
+                <div className="workspace-mode-icon security-mode-icon">
+                  <Shield size={18} />
+                </div>
+
+                <div>
+                  <strong>
+                    Security
+                  </strong>
+
+                  <span>
+                    API security &amp;
+                    monitoring
+                  </span>
+                </div>
+
+              </button>
+
+            </div>
+          )}
+
         </div>
 
-        <button
-          type="button"
-          className={`workspace-mode-option ${
-            workspaceMode === 'USER' ? 'selected' : ''
-          }`}
-          onClick={() => {
-            setWorkspaceMode('USER');
-            setShowModeMenu(false);
-          }}
-        >
-          <div className="workspace-mode-icon user-mode-icon">
-            <User size={18} />
-          </div>
+        {/* =================================================
+            USER / SECURITY SWITCHER
+        ================================================= */}
 
-          <div>
-            <strong>User</strong>
-            <span>
-              Payments & account
-            </span>
-          </div>
-        </button>
+        <div className="workspace-mode-switch">
 
-        <button
-          type="button"
-          className={`workspace-mode-option ${
-            workspaceMode === 'SECURITY' ? 'selected' : ''
-          }`}
-          onClick={() => {
-            setWorkspaceMode('SECURITY');
-            setShowModeMenu(false);
-          }}
-        >
-          <div className="workspace-mode-icon security-mode-icon">
-            <Shield size={18} />
-          </div>
+          <button
+            type="button"
+            className={`workspace-toggle ${
+              workspaceMode ===
+              'USER'
+                ? 'active'
+                : ''
+            }`}
+            onClick={() =>
+              switchWorkspaceMode(
+                'USER'
+              )
+            }
+          >
+            <User size={17} />
+            <span>User</span>
+          </button>
 
-          <div>
-            <strong>Security</strong>
-            <span>
-              API security & monitoring
-            </span>
-          </div>
-        </button>
+          <button
+            type="button"
+            className={`workspace-toggle ${
+              workspaceMode ===
+              'SECURITY'
+                ? 'active security-active'
+                : ''
+            }`}
+            onClick={() =>
+              switchWorkspaceMode(
+                'SECURITY'
+              )
+            }
+          >
+            <Shield size={17} />
+            <span>Security</span>
+          </button>
 
-      </div>
-    )}
+        </div>
 
-  </div>
+        {/* =================================================
+            HEADER ACTIONS
+        ================================================= */}
 
-  <div className="workspace-mode-switch">
+        <div className="phonepe-header-actions">
 
-    <button
-      type="button"
-      className={`workspace-toggle ${
-        workspaceMode === 'USER' ? 'active' : ''
-      }`}
-      onClick={() => setWorkspaceMode('USER')}
-    >
-      <User size={17} />
-      <span>User</span>
-    </button>
+          <button
+            type="button"
+            onClick={() =>
+              setShowQR(true)
+            }
+            title="My UPI QR"
+            aria-label="My UPI QR"
+          >
+            <QrCode size={21} />
+          </button>
 
-    <button
-      type="button"
-      className={`workspace-toggle ${
-        workspaceMode === 'SECURITY' ? 'active security-active' : ''
-      }`}
-      onClick={() => setWorkspaceMode('SECURITY')}
-    >
-      <Shield size={17} />
-      <span>Security</span>
-    </button>
+          <button
+            type="button"
+            onClick={() => {
+              api.logout();
+              navigate('/');
+            }}
+            title="Logout"
+            aria-label="Logout"
+          >
+            <LogOut size={21} />
+          </button>
 
-  </div>
+        </div>
 
-  <div className="phonepe-header-actions">
+      </header>
 
-    <button
-      type="button"
-      onClick={() => setShowQR(true)}
-      title="My UPI QR"
-    >
-      <QrCode size={21} />
-    </button>
-
-    <button
-      type="button"
-      onClick={() => {
-        api.logout();
-        navigate('/');
-      }}
-      title="Logout"
-    >
-      <LogOut size={21} />
-    </button>
-
-  </div>
-
-</header>
-
-      {/* BALANCE */}
+      {/* ===================================================
+          BALANCE
+      =================================================== */}
 
       <section className="balance-card">
+
         <div className="balance-top">
+
           <div>
+
             <p className="balance-label">
               Available Balance
             </p>
 
             <div className="balance-value">
+
               {showBalance
-                ? `₹${balance.toLocaleString(
-                    'en-IN',
-                    {
-                      minimumFractionDigits: 2,
-                    }
-                  )}`
+                ? formatDisplayINR(
+                    balance
+                  )
                 : '••••••••'}
+
             </div>
 
             <p className="balance-account">
-              {bank.name} | {bank.account}
+              {bank.name} |{' '}
+              {bank.account}
             </p>
+
           </div>
 
           <button
@@ -1432,6 +2444,11 @@ const security = {
                 !showBalance
               )
             }
+            aria-label={
+              showBalance
+                ? 'Hide balance'
+                : 'Show balance'
+            }
           >
             {showBalance ? (
               <EyeOff size={19} />
@@ -1439,37 +2456,52 @@ const security = {
               <Eye size={19} />
             )}
           </button>
+
         </div>
 
         <div className="balance-security">
+
           <Shield size={16} />
 
           <span>
             Protected by SecurePay
           </span>
+
         </div>
+
       </section>
 
-      {/* CONTENT */}
+      {/* ===================================================
+          CONTENT
+      =================================================== */}
 
       <main className="phonepe-main">
-        {activeTab === 'home' &&
+
+        {activeTab ===
+          'home' &&
           renderHome()}
 
-        {activeTab === 'pay' &&
+        {activeTab ===
+          'pay' &&
           renderPay()}
 
-        {activeTab === 'history' &&
+        {activeTab ===
+          'history' &&
           renderHistory()}
 
-        {activeTab === 'bank' &&
+        {activeTab ===
+          'bank' &&
           renderBank()}
 
-        {activeTab === 'security' &&
+        {activeTab ===
+          'security' &&
           renderSecurity()}
+
       </main>
 
-      {/* BOTTOM NAVIGATION */}
+      {/* ===================================================
+          BOTTOM NAVIGATION
+      =================================================== */}
 
       <nav className="phonepe-bottom-nav">
 
@@ -1479,7 +2511,8 @@ const security = {
             setActiveTab('home')
           }
           className={
-            activeTab === 'home'
+            activeTab ===
+            'home'
               ? 'active'
               : ''
           }
@@ -1491,10 +2524,13 @@ const security = {
         <button
           type="button"
           onClick={() =>
-            openPayFlow('TO_MOBILE')
+            openPayFlow(
+              'TO_MOBILE'
+            )
           }
           className={
-            activeTab === 'pay'
+            activeTab ===
+            'pay'
               ? 'active'
               : ''
           }
@@ -1506,10 +2542,13 @@ const security = {
         <button
           type="button"
           onClick={() =>
-            setActiveTab('history')
+            setActiveTab(
+              'history'
+            )
           }
           className={
-            activeTab === 'history'
+            activeTab ===
+            'history'
               ? 'active'
               : ''
           }
@@ -1521,10 +2560,13 @@ const security = {
         <button
           type="button"
           onClick={() =>
-            setActiveTab('bank')
+            setActiveTab(
+              'bank'
+            )
           }
           className={
-            activeTab === 'bank'
+            activeTab ===
+            'bank'
               ? 'active'
               : ''
           }
@@ -1536,10 +2578,13 @@ const security = {
         <button
           type="button"
           onClick={() =>
-            setActiveTab('security')
+            switchWorkspaceMode(
+              'SECURITY'
+            )
           }
           className={
-            activeTab === 'security'
+            activeTab ===
+            'security'
               ? 'active'
               : ''
           }
@@ -1547,9 +2592,12 @@ const security = {
           <Shield size={21} />
           <span>Security</span>
         </button>
+
       </nav>
 
-      {/* QR MODAL */}
+      {/* ===================================================
+          MY UPI QR MODAL
+      =================================================== */}
 
       {showQR && (
         <div
@@ -1558,27 +2606,35 @@ const security = {
             setShowQR(false)
           }
         >
+
           <div
             className="qr-modal"
             onClick={(e) =>
               e.stopPropagation()
             }
           >
+
             <button
               type="button"
               className="qr-close"
               onClick={() =>
                 setShowQR(false)
               }
+              aria-label="Close QR"
             >
               <X size={20} />
             </button>
 
-            <h2>My UPI QR</h2>
+            <h2>
+              My UPI QR
+            </h2>
 
-            <p>Scan to pay</p>
+            <p>
+              Scan to pay
+            </p>
 
             <div className="qr-code-container">
+
               <QRCodeSVG
                 value={`upi://pay?pa=${myUpiId}&pn=${encodeURIComponent(
                   user.name
@@ -1587,6 +2643,7 @@ const security = {
                 level="H"
                 includeMargin={true}
               />
+
             </div>
 
             <strong className="qr-upi-id">
@@ -1602,139 +2659,241 @@ const security = {
               for the SecurePay college
               project.
             </p>
+
           </div>
+
         </div>
       )}
 
-      {/* QR SCANNER MODAL */}
+      {/* ===================================================
+          QR SCANNER MODAL
+      =================================================== */}
 
       {showScanner && (
         <div
           className="qr-modal-overlay"
-          onClick={stopQRScanner}
+          onClick={
+            stopQRScanner
+          }
         >
+
           <div
             className="qr-modal scanner-modal"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) =>
+              e.stopPropagation()
+            }
           >
+
             <button
               type="button"
               className="qr-close"
-              onClick={stopQRScanner}
+              onClick={
+                stopQRScanner
+              }
               aria-label="Close QR scanner"
             >
               <X size={20} />
             </button>
 
             <div className="scanner-header">
+
               <div className="scanner-icon">
                 <QrCode size={24} />
               </div>
 
               <div>
-                <h2>Scan QR Code</h2>
-                <p>Scan a UPI QR to pay securely</p>
+
+                <h2>
+                  Scan QR Code
+                </h2>
+
+                <p>
+                  Scan a UPI QR to pay securely
+                </p>
+
               </div>
+
             </div>
 
-            <div id="qr-reader" className="qr-reader" />
+            <div
+              id="qr-reader"
+              className="qr-reader"
+            />
 
             <div className="scanner-instruction">
+
               <QrCode size={19} />
+
               <span>
                 Place the QR code inside the scanning frame.
               </span>
+
             </div>
 
             {scannerMessage && (
               <div className="payment-message scanner-message">
+
                 <CheckCircle size={18} />
-                <span>{scannerMessage}</span>
+
+                <span>
+                  {scannerMessage}
+                </span>
+
               </div>
             )}
 
             <button
               type="button"
               className="scanner-cancel-button"
-              onClick={stopQRScanner}
+              onClick={
+                stopQRScanner
+              }
             >
               Cancel
             </button>
+
           </div>
+
         </div>
       )}
 
-      {/* ADD MONEY MODAL */}
+      {/* ===================================================
+          ADD MONEY MODAL
+      =================================================== */}
 
       {showAddMoneyModal && (
         <div
           className="qr-modal-overlay"
-          onClick={() => setShowAddMoneyModal(false)}
+          onClick={() =>
+            setShowAddMoneyModal(
+              false
+            )
+          }
         >
+
           <div
             className="qr-modal"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '380px' }}
+            onClick={(e) =>
+              e.stopPropagation()
+            }
+            style={{
+              maxWidth: '380px',
+            }}
           >
+
             <button
               type="button"
               className="qr-close"
-              onClick={() => setShowAddMoneyModal(false)}
+              onClick={() =>
+                setShowAddMoneyModal(
+                  false
+                )
+              }
+              aria-label="Close Add Money"
             >
               <X size={20} />
             </button>
 
-            <h2>Add Money</h2>
-            <p>Simulated deposit to your server balance</p>
+            <h2>
+              Add Money
+            </h2>
+
+            <p>
+              Simulated deposit to your server balance
+            </p>
 
             <form
-              onSubmit={handleAddMoney}
+              onSubmit={
+                handleAddMoney
+              }
               style={{
-                marginTop: '16px',
-                display: 'flex',
-                flexDirection: 'column',
+                marginTop:
+                  '16px',
+                display:
+                  'flex',
+                flexDirection:
+                  'column',
                 gap: '12px',
               }}
             >
+
               <div
                 style={{
-                  display: 'flex',
+                  display:
+                    'flex',
                   gap: '8px',
-                  justifyContent: 'center',
+                  justifyContent:
+                    'center',
                 }}
               >
-                {['500', '1000', '2000', '5000'].map((val) => (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => setAddMoneyAmount(val)}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '6px',
-                      border:
-                        addMoneyAmount === val
-                          ? '2px solid #5f259f'
-                          : '1px solid #e2e8f0',
-                      background:
-                        addMoneyAmount === val ? '#f3e8ff' : '#f8fafc',
-                      color: '#1e293b',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    ₹{val}
-                  </button>
-                ))}
+
+                {[
+                  '500',
+                  '1000',
+                  '2000',
+                  '5000',
+                ].map(
+                  (val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() =>
+                        setAddMoneyAmount(
+                          val
+                        )
+                      }
+                      style={{
+                        padding:
+                          '6px 12px',
+                        borderRadius:
+                          '6px',
+                        border:
+                          addMoneyAmount ===
+                          val
+                            ? '2px solid #5f259f'
+                            : '1px solid #e2e8f0',
+                        background:
+                          addMoneyAmount ===
+                          val
+                            ? '#f3e8ff'
+                            : '#f8fafc',
+                        color:
+                          '#1e293b',
+                        fontWeight:
+                          600,
+                        cursor:
+                          'pointer',
+                      }}
+                    >
+                      {RUPEE}
+                      {val}
+                    </button>
+                  )
+                )}
+
               </div>
 
-              <div className="amount-input" style={{ margin: '8px 0' }}>
+              <div
+                className="amount-input"
+                style={{
+                  margin:
+                    '8px 0',
+                }}
+              >
                 <IndianRupee size={20} />
+
                 <input
                   type="number"
                   min="1"
                   step="1"
-                  value={addMoneyAmount}
-                  onChange={(e) => setAddMoneyAmount(e.target.value)}
+                  value={
+                    addMoneyAmount
+                  }
+                  onChange={(e) =>
+                    setAddMoneyAmount(
+                      e.target.value
+                    )
+                  }
                   placeholder="Enter amount"
                   required
                 />
@@ -1743,11 +2902,16 @@ const security = {
               {addMoneyMessage && (
                 <div
                   style={{
-                    fontSize: '13px',
-                    color: addMoneyMessage.includes('added')
-                      ? '#16a34a'
-                      : '#dc2626',
-                    textAlign: 'center',
+                    fontSize:
+                      '13px',
+                    color:
+                      addMoneyMessage.includes(
+                        'added'
+                      )
+                        ? '#16a34a'
+                        : '#dc2626',
+                    textAlign:
+                      'center',
                   }}
                 >
                   {addMoneyMessage}
@@ -1757,115 +2921,245 @@ const security = {
               <button
                 type="submit"
                 className="send-payment-button"
-                disabled={isAddingMoney}
+                disabled={
+                  isAddingMoney
+                }
               >
                 {isAddingMoney
                   ? 'Adding Funds...'
-                  : `Add ₹${Number(addMoneyAmount || 0)}`}
+                  : `Add ${RUPEE}${Number(
+                      addMoneyAmount ||
+                        0
+                    )}`}
               </button>
+
             </form>
+
           </div>
+
         </div>
       )}
+
+      {/* ===================================================
+          PAYMENT RESULT MODAL
+      =================================================== */}
+
       {paymentResult && (
         <div
           className={`payment-result-overlay ${
-            paymentResult.type === 'success'
+            paymentResult.type ===
+            'success'
               ? 'payment-success'
               : 'payment-failure'
           }`}
         >
+
           <div className="payment-result-card">
 
             <div className="payment-result-icon">
-              {paymentResult.type === 'success'
+              {paymentResult.type ===
+              'success'
                 ? '✓'
                 : '✕'}
             </div>
 
             <h1>
-              {paymentResult.type === 'success'
+              {paymentResult.type ===
+              'success'
                 ? 'Payment Successful'
                 : 'Payment Blocked'}
             </h1>
 
             <div className="payment-result-amount">
-              {formatINR(paymentResult.amount || 0)}
+              {formatDisplayINR(
+                paymentResult.amount ||
+                  0
+              )}
             </div>
 
             <div className="payment-result-details">
-              {paymentResult.type === 'success' ? (
+
+              {paymentResult.type ===
+              'success' ? (
                 <>
-                  <p><strong>Receiver:</strong> {paymentResult.receiver}</p>
-                  <p><strong>Transaction ID:</strong> {paymentResult.transactionId}</p>
-                  <p><strong>Date:</strong> {new Date(paymentResult.createdAt || Date.now()).toLocaleString()}</p>
+                  <p>
+                    <strong>
+                      Receiver:
+                    </strong>{' '}
+                    {paymentResult.receiver}
+                  </p>
+
+                  <p>
+                    <strong>
+                      Transaction ID:
+                    </strong>{' '}
+                    {
+                      paymentResult.transactionId
+                    }
+                  </p>
+
+                  <p>
+                    <strong>
+                      Date:
+                    </strong>{' '}
+                    {new Date(
+                      paymentResult.createdAt ||
+                        Date.now()
+                    ).toLocaleString()}
+                  </p>
+                </>
+              ) : (
+                <p>
+                  <strong>
+                    Reason:
+                  </strong>{' '}
+                  {paymentResult.reason ||
+                    paymentResult.error}
+                </p>
+              )}
+
+              <div className="payment-result-security">
+
+                <p>
+                  <strong>
+                    Security Score:
+                  </strong>{' '}
+                  {paymentResult.securityScore}
+                  /100
+                </p>
+
+                <p>
+                  <strong>
+                    Decision:
+                  </strong>{' '}
+
+                  <span
+                    className={
+                      paymentResult.decision ===
+                      'ALLOW'
+                        ? 'security-pass'
+                        : 'security-warning'
+                    }
+                  >
+                    {
+                      paymentResult.decision
+                    }
+                  </span>
+                </p>
+
+              </div>
+
+            </div>
+
+            <div className="smart-payment-recommendation">
+
+              <h3>
+                SecurePay Assistant
+              </h3>
+
+              {paymentResult.decision !==
+              'ALLOW' ? (
+                <>
+                  <p>
+                    <strong>
+                      Recommended Action:
+                      Do Not Proceed
+                    </strong>
+                  </p>
+
+                  <p>
+                    The security gate did not
+                    allow this transaction.
+                    Do not select an alternative
+                    payment method until the
+                    security issue is reviewed.
+                  </p>
+                </>
+              ) : paymentResult.securityScore >=
+                90 ? (
+                <>
+                  <p>
+                    <strong>
+                      Recommended Payment Method:
+                      UPI
+                    </strong>
+                  </p>
+
+                  <p>
+                    Your security pipeline score
+                    is high and the transaction has
+                    low risk. UPI is recommended
+                    for this payment.
+                  </p>
+                </>
+              ) : paymentResult.securityScore >=
+                75 ? (
+                <>
+                  <p>
+                    <strong>
+                      Recommended Payment Method:
+                      UPI
+                    </strong>
+                  </p>
+
+                  <p>
+                    The transaction passed security
+                    checks with a good security
+                    score. UPI is recommended with
+                    continued security monitoring.
+                  </p>
+                </>
+              ) : paymentResult.securityScore >=
+                60 ? (
+                <>
+                  <p>
+                    <strong>
+                      Recommended Payment Method:
+                      Bank Transfer
+                    </strong>
+                  </p>
+
+                  <p>
+                    The security score indicates
+                    moderate risk. Additional
+                    verification is recommended
+                    before proceeding.
+                  </p>
+                </>
+              ) : paymentResult.securityScore >=
+                40 ? (
+                <>
+                  <p>
+                    <strong>
+                      Recommended Payment Method:
+                      Bank Transfer
+                    </strong>
+                  </p>
+
+                  <p>
+                    Elevated security risk detected.
+                    Use additional verification before
+                    completing the payment.
+                  </p>
                 </>
               ) : (
                 <>
-                  <p><strong>Reason:</strong> {paymentResult.reason || paymentResult.error}</p>
+                  <p>
+                    <strong>
+                      Recommended Action:
+                      Do Not Proceed
+                    </strong>
+                  </p>
+
+                  <p>
+                    The security pipeline score is
+                    critically low. Security review
+                    is required.
+                  </p>
                 </>
               )}
-              
-              <div className="payment-result-security">
-                <p><strong>Security Score:</strong> {paymentResult.securityScore}/100</p>
-                <p><strong>Decision:</strong> <span className={paymentResult.decision === 'ALLOW' ? 'security-pass' : 'security-warning'}>{paymentResult.decision}</span></p>
-              </div>
-            </div>
-            <div className="smart-payment-recommendation">
-  <h3>🤖 SecurePay Assistant</h3>
 
-  {paymentResult.decision !== 'ALLOW' ? (
-  <>
-    <p><strong>Recommended Action: Do Not Proceed</strong></p>
-    <p>
-      The security gate did not allow this transaction.
-      Do not select an alternative payment method until
-      the security issue is reviewed.
-    </p>
-  </>
-) : paymentResult.securityScore >= 90 ? (
-    <>
-      <p><strong>Recommended Payment Method: UPI</strong></p>
-      <p>
-        Your security pipeline score is high and the transaction
-        has low risk. UPI is recommended for this payment.
-      </p>
-    </>
-  ): paymentResult.securityScore >= 75 ? (
-  <>
-    <p><strong>Recommended Payment Method: UPI</strong></p>
-    <p>
-      The transaction passed security checks with a good
-      security score. UPI is recommended with continued
-      security monitoring.
-    </p>
-  </>
-): paymentResult.securityScore >= 60 ? (
-    <>
-      <p><strong>Recommended Payment Method: Bank Transfer</strong></p>
-      <p>
-        The security score indicates moderate risk. Additional
-        verification is recommended before proceeding.
-      </p>
-    </>
-  ) : paymentResult.securityScore >= 40 ? (
-    <>
-      <p><strong>Recommended Payment Method: Bank Transfer</strong></p>
-      <p>
-        Elevated security risk detected. Use additional
-        verification before completing the payment.
-      </p>
-    </>
-  ) : (
-    <>
-      <p><strong>Recommended Action: Do Not Proceed</strong></p>
-      <p>
-        The security pipeline score is critically low.
-        Security review is required.
-      </p>
-    </>
-  )}
-</div>
+            </div>
 
             <button
               type="button"
@@ -1878,6 +3172,7 @@ const security = {
             </button>
 
           </div>
+
         </div>
       )}
 
