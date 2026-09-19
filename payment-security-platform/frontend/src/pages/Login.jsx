@@ -1,44 +1,36 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, User, Mail, Phone, Lock, ArrowRight, KeyRound } from 'lucide-react';
+import {
+  ShieldCheck,
+  Mail,
+  Lock,
+  ArrowRight,
+  UserPlus,
+  User,
+  Shield,
+} from 'lucide-react';
 import { api } from '../services/api';
 
-const DEMO_PERSONAS = [
+const DEMO_ACCOUNTS = [
   {
     label: 'User A',
-    subtitle: 'userA@upi',
-    name: 'User A',
-    email: 'userA@securepay.local',
-    phone: '9876543210',
+    identifier: 'userA@securepay.local',
     password: 'UserA@123',
-    mode: 'user',
   },
   {
     label: 'User B',
-    subtitle: 'userB@upi',
-    name: 'User B',
-    email: 'userB@securepay.local',
-    phone: '9876543211',
+    identifier: 'userB@securepay.local',
     password: 'UserB@123',
-    mode: 'user',
   },
   {
     label: 'Admin',
-    subtitle: 'admin@upi',
-    name: 'System Admin',
-    email: 'admin@securepay.local',
-    phone: '9876543200',
+    identifier: 'admin@securepay.local',
     password: 'Admin@123',
-    mode: 'security',
   },
   {
     label: 'Reviewer',
-    subtitle: 'reviewer@upi',
-    name: 'Security Reviewer',
-    email: 'reviewer@securepay.local',
-    phone: '9876543201',
+    identifier: 'reviewer@securepay.local',
     password: 'Reviewer@123',
-    mode: 'security',
   },
 ];
 
@@ -46,40 +38,56 @@ export default function Login() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
-    name: 'User A',
-    phone: '9876543210',
-    email: 'userA@securepay.local',
-    password: 'UserA@123',
+    identifier: '',
+    password: '',
   });
 
-  const [mode, setMode] = useState('user');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState('');
 
   const handleChange = (e) => {
-    setForm({
-      ...form,
+    setForm((prev) => ({
+      ...prev,
       [e.target.name]: e.target.value,
-    });
+    }));
     setError('');
   };
 
-  const selectPersona = (p) => {
-    setForm({
-      name: p.name,
-      phone: p.phone,
-      email: p.email,
-      password: p.password,
-    });
-    setMode(p.mode);
-    setError('');
+  const completeLogin = (loginRes) => {
+    if (!loginRes?.success || !loginRes?.user) {
+      setError(loginRes?.error || 'Authentication failed.');
+      return false;
+    }
+
+    const user = loginRes.user;
+
+    localStorage.setItem(
+      'paymentUser',
+      JSON.stringify({
+        id: user.id,
+        name: user.name || 'User',
+        phone: user.phone || '',
+        email: user.email || '',
+        upiId: user.upiId || '',
+        role: user.role || 'USER',
+        mode: null,
+      })
+    );
+
+    localStorage.removeItem('securepay_workspace_mode');
+
+    navigate('/mode');
+    return true;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!form.email || !form.password) {
-      setError('Please provide your email/UPI ID and password.');
+    const identifier = form.identifier.trim();
+
+    if (!identifier || !form.password) {
+      setError('Please enter your email/UPI ID and password.');
       return;
     }
 
@@ -87,39 +95,41 @@ export default function Login() {
     setError('');
 
     try {
-      const loginRes = await api.login(form.email, form.password);
-
-      if (loginRes && loginRes.success) {
-        // Store display user profile for frontend UI
-        localStorage.setItem(
-          'paymentUser',
-          JSON.stringify({
-            id: loginRes.user.id,
-            name: loginRes.user.name || form.name,
-            phone: form.phone,
-            email: loginRes.user.email,
-            upiId: loginRes.user.upiId,
-            role: loginRes.user.role,
-            mode: mode,
-          })
-        );
-
-        if (mode === 'user') {
-          navigate('/payment');
-        } else {
-          navigate('/dashboard');
-        }
-      } else {
-        setError(loginRes.error || 'Authentication failed.');
-      }
+      const loginRes = await api.login(identifier, form.password);
+      completeLogin(loginRes);
     } catch (err) {
       console.error('Login error:', err);
+
       const errMsg =
         err.response?.data?.error ||
-        'Unable to connect to backend. Please ensure the backend server is running on port 5002.';
+        'Unable to connect to backend. Please ensure port 5002 is running.';
+
       setError(errMsg);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDemoLogin = async (demo) => {
+    setDemoLoading(demo.label);
+    setError('');
+
+    try {
+      const loginRes = await api.login(
+        demo.identifier,
+        demo.password
+      );
+
+      completeLogin(loginRes);
+    } catch (err) {
+      console.error('Demo login error:', err);
+
+      setError(
+        err.response?.data?.error ||
+        `Unable to login as ${demo.label}.`
+      );
+    } finally {
+      setDemoLoading('');
     }
   };
 
@@ -144,72 +154,7 @@ export default function Login() {
           <span>Server-Authenticated Login (JWT)</span>
         </div>
 
-        {/* Demo Persona Quick-Select */}
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{ fontSize: '13px', color: '#94a3b8', display: 'block', marginBottom: '8px' }}>
-            Quick Demo Personas:
-          </label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-            {DEMO_PERSONAS.map((p) => (
-              <button
-                key={p.email}
-                type="button"
-                onClick={() => selectPersona(p)}
-                style={{
-                  padding: '8px 10px',
-                  borderRadius: '8px',
-                  border: form.email === p.email ? '1px solid #7c3aed' : '1px solid rgba(255,255,255,0.1)',
-                  background: form.email === p.email ? 'rgba(124, 58, 237, 0.2)' : 'rgba(255,255,255,0.03)',
-                  color: '#f8fafc',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  transition: 'all 0.2s',
-                }}
-              >
-                <strong style={{ display: 'block', color: form.email === p.email ? '#c084fc' : '#e2e8f0' }}>
-                  {p.label}
-                </strong>
-                <span style={{ fontSize: '11px', color: '#94a3b8' }}>{p.subtitle}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
         <form onSubmit={handleSubmit}>
-
-          <div className="login-field">
-            <label>Full Name</label>
-
-            <div className="input-wrapper">
-              <User size={18} />
-
-              <input
-                type="text"
-                name="name"
-                placeholder="Enter your name"
-                value={form.name}
-                onChange={handleChange}
-              />
-            </div>
-          </div>
-
-          <div className="login-field">
-            <label>Mobile Number</label>
-
-            <div className="input-wrapper">
-              <Phone size={18} />
-
-              <input
-                type="tel"
-                name="phone"
-                placeholder="10-digit mobile number"
-                maxLength="10"
-                value={form.phone}
-                onChange={handleChange}
-              />
-            </div>
-          </div>
 
           <div className="login-field">
             <label>Email / UPI ID</label>
@@ -219,10 +164,11 @@ export default function Login() {
 
               <input
                 type="text"
-                name="email"
+                name="identifier"
                 placeholder="Enter email or UPI ID"
-                value={form.email}
+                value={form.identifier}
                 onChange={handleChange}
+                autoComplete="username"
                 required
               />
             </div>
@@ -232,7 +178,7 @@ export default function Login() {
             <label>Password</label>
 
             <div className="input-wrapper">
-              <KeyRound size={18} />
+              <Lock size={18} />
 
               <input
                 type="password"
@@ -240,46 +186,9 @@ export default function Login() {
                 placeholder="Enter password"
                 value={form.password}
                 onChange={handleChange}
+                autoComplete="current-password"
                 required
               />
-            </div>
-          </div>
-
-          <div className="mode-section">
-            <label>Select Application Mode</label>
-
-            <div className="mode-options">
-
-              <button
-                type="button"
-                className={`mode-option ${
-                  mode === 'user' ? 'active' : ''
-                }`}
-                onClick={() => setMode('user')}
-              >
-                <User size={22} />
-
-                <div>
-                  <strong>User Mode</strong>
-                  <span>Make payments &amp; manage account</span>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                className={`mode-option ${
-                  mode === 'security' ? 'active' : ''
-                }`}
-                onClick={() => setMode('security')}
-              >
-                <ShieldCheck size={22} />
-
-                <div>
-                  <strong>Security Mode</strong>
-                  <span>Analyze payment &amp; security tests</span>
-                </div>
-              </button>
-
             </div>
           </div>
 
@@ -289,12 +198,97 @@ export default function Login() {
             </div>
           )}
 
-          <button type="submit" className="login-button" disabled={isLoading}>
-            {isLoading ? 'Authenticating...' : `Continue as ${mode === 'user' ? 'User' : 'Security Analyst'}`}
+          <button
+            type="submit"
+            className="login-button"
+            disabled={isLoading || !!demoLoading}
+          >
+            {isLoading ? 'Authenticating...' : 'Login'}
             <ArrowRight size={19} />
           </button>
 
         </form>
+
+        <button
+          type="button"
+          onClick={() => navigate('/register')}
+          disabled={isLoading || !!demoLoading}
+          style={{
+            width: '100%',
+            marginTop: '12px',
+            padding: '12px 16px',
+            borderRadius: '10px',
+            border: '1px solid rgba(124,58,237,0.45)',
+            background: 'rgba(124,58,237,0.12)',
+            color: '#e9d5ff',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            fontWeight: 600,
+          }}
+        >
+          <UserPlus size={18} />
+          Create Account
+        </button>
+
+        <div
+          style={{
+            marginTop: '20px',
+            paddingTop: '16px',
+            borderTop: '1px solid rgba(255,255,255,0.08)',
+          }}
+        >
+          <div
+            style={{
+              fontSize: '12px',
+              color: '#94a3b8',
+              marginBottom: '9px',
+              textAlign: 'center',
+            }}
+          >
+            Demo Accounts
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gap: '8px',
+            }}
+          >
+            {DEMO_ACCOUNTS.map((demo) => (
+              <button
+                key={demo.label}
+                type="button"
+                onClick={() => handleDemoLogin(demo)}
+                disabled={isLoading || !!demoLoading}
+                style={{
+                  padding: '9px 10px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'rgba(255,255,255,0.03)',
+                  color: '#e2e8f0',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  fontSize: '12px',
+                }}
+              >
+                {demo.label === 'Admin' || demo.label === 'Reviewer'
+                  ? <Shield size={14} />
+                  : <User size={14} />}
+
+                {demoLoading === demo.label
+                  ? 'Logging in...'
+                  : demo.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div className="login-footer">
           <ShieldCheck size={15} />
