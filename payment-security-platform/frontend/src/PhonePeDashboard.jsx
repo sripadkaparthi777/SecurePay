@@ -4,6 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { api } from './services/api';
 import './PhonePeDashboard.css';
+import './SecurePayDashboard.css';
 
 import {
   QrCode,
@@ -2216,387 +2217,134 @@ export default function PhonePeDashboard({
   // =========================================================
 
   return (
-    <div className="phonepe-app">
+    <div className="securepay-layout">
+      {/* SIDEBAR */}
+      <aside className="secure-sidebar">
+        <div className="sidebar-brand">
+          <Shield size={28} color="var(--accent-cyan)" />
+          <div className="brand-text">
+            <h1>SECUREPAY</h1>
+            <div className="system-status">
+              <div className="status-pulse"></div>
+              API ENGINE ONLINE
+            </div>
+          </div>
+        </div>
 
-      {/* ===================================================
-          HEADER
-      =================================================== */}
-
-      <header className="phonepe-header">
-
-        <div className="phonepe-profile-section">
-
-          <button
-            type="button"
-            className="phonepe-avatar profile-mode-button"
-            onClick={() =>
-              setShowModeMenu(
-                (prev) => !prev
-              )
-            }
-            title="Switch workspace"
-            aria-label="Switch workspace"
+        <div className="nav-section">
+          <div className="nav-label">Command Center</div>
+          <button 
+            className={`nav-item ${activeTab === 'home' ? 'active' : ''}`}
+            onClick={() => setActiveTab('home')}
           >
-            <User size={20} />
+            <Activity size={18} /> Dashboard
           </button>
+        </div>
 
-          <div className="phonepe-profile-info">
+        <div className="nav-section">
+          <div className="nav-label">Payment Testing</div>
+          <button 
+            className={`nav-item ${activeTab === 'pay' ? 'active' : ''}`}
+            onClick={() => openPayFlow('TO_MOBILE')}
+          >
+            <Send size={18} /> Payments
+          </button>
+          <button 
+            className={`nav-item ${activeTab === 'history' ? 'active' : ''}`}
+            onClick={() => setActiveTab('history')}
+          >
+            <History size={18} /> API Explorer
+          </button>
+        </div>
 
-            <p className="phonepe-small-text">
-              Welcome back
-            </p>
+        <div className="nav-section">
+          <div className="nav-label">Security Operations</div>
+          <button 
+            className={`nav-item ${activeTab === 'security' || workspaceMode === 'SECURITY' ? 'active' : ''}`}
+            onClick={() => switchWorkspaceMode('SECURITY')}
+          >
+            <Shield size={18} /> Security Scan
+          </button>
+          <button 
+            className="nav-item"
+            onClick={() => setActiveTab('bank')}
+          >
+            <Building size={18} /> Security Incidents
+          </button>
+        </div>
 
-            <p className="phonepe-user-name">
-              {user.name}
-            </p>
+        <div style={{ marginTop: 'auto', padding: '0 24px' }}>
+          <button
+            className="nav-item profile-mode-button"
+            onClick={() => setShowModeMenu(!showModeMenu)}
+            style={{ marginBottom: '12px' }}
+          >
+            <User size={18} /> {user.name}
+          </button>
+          <button
+            className="nav-item"
+            onClick={() => { api.logout(); navigate('/'); }}
+            style={{ color: 'var(--status-error)' }}
+          >
+            <LogOut size={18} /> Logout
+          </button>
+        </div>
 
-            <p className="phonepe-small-text">
-              {user.mobile}
-            </p>
+        {showModeMenu && (
+          <div className="workspace-mode-menu" style={{ left: '20px', bottom: '120px' }}>
+            <div className="workspace-mode-title">Workspace</div>
+            <button className="workspace-mode-option" onClick={() => switchWorkspaceMode('USER')}>
+              <User size={14} /> User Mode
+            </button>
+            <button className="workspace-mode-option" onClick={() => switchWorkspaceMode('SECURITY')}>
+              <Shield size={14} /> Security Mode
+            </button>
+          </div>
+        )}
+      </aside>
 
+      {/* MAIN CONTENT */}
+      <main className="secure-main">
+        <header className="secure-header">
+          <div className="header-left">
+            <h2>{activeTab.toUpperCase()} / {workspaceMode} CONSOLE</h2>
+          </div>
+          <div className="header-status-bar">
+            <div className="status-pill">API: <span>ONLINE</span></div>
+            <div className="status-pill">ZAP: <span>CONNECTED</span></div>
+            <div className="status-pill">BALANCE: <span>{formatDisplayINR(balance)}</span></div>
+          </div>
+        </header>
+
+        <div className="content-container">
+          <div className="telemetry-grid">
+            <div className="telemetry-card">
+              <span className="telemetry-label">Security Score</span>
+              <span className="telemetry-value">{securityScore}</span>
+            </div>
+            <div className="telemetry-card">
+              <span className="telemetry-label">Threat Status</span>
+              <span className="telemetry-value" style={{ color: securityScore > 80 ? 'var(--status-pass)' : 'var(--status-warn)' }}>
+                {securityScore > 80 ? 'PROTECTED' : 'WARNING'}
+              </span>
+            </div>
+            <div className="telemetry-card">
+              <span className="telemetry-label">API Requests</span>
+              <span className="telemetry-value">{transactions.length}</span>
+            </div>
+            <div className="telemetry-card">
+              <span className="telemetry-label">System Health</span>
+              <span className="telemetry-value">99.8%</span>
+            </div>
           </div>
 
-          {showModeMenu && (
-            <div className="workspace-mode-menu">
-
-              <div className="workspace-mode-title">
-                Workspace
-              </div>
-
-              <button
-                type="button"
-                className={`workspace-mode-option ${
-                  workspaceMode ===
-                  'USER'
-                    ? 'selected'
-                    : ''
-                }`}
-                onClick={() =>
-                  switchWorkspaceMode(
-                    'USER'
-                  )
-                }
-              >
-
-                <div className="workspace-mode-icon user-mode-icon">
-                  <User size={18} />
-                </div>
-
-                <div>
-                  <strong>
-                    User
-                  </strong>
-
-                  <span>
-                    Payments &amp; account
-                  </span>
-                </div>
-
-              </button>
-
-              <button
-                type="button"
-                className={`workspace-mode-option ${
-                  workspaceMode ===
-                  'SECURITY'
-                    ? 'selected'
-                    : ''
-                }`}
-                onClick={() =>
-                  switchWorkspaceMode(
-                    'SECURITY'
-                  )
-                }
-              >
-
-                <div className="workspace-mode-icon security-mode-icon">
-                  <Shield size={18} />
-                </div>
-
-                <div>
-                  <strong>
-                    Security
-                  </strong>
-
-                  <span>
-                    API security &amp;
-                    monitoring
-                  </span>
-                </div>
-
-              </button>
-
-            </div>
-          )}
-
+          {activeTab === 'home' && renderHome()}
+          {activeTab === 'pay' && renderPay()}
+          {activeTab === 'history' && renderHistory()}
+          {activeTab === 'bank' && renderBank()}
+          {activeTab === 'security' && renderSecurity()}
         </div>
-
-        {/* =================================================
-            USER / SECURITY SWITCHER
-        ================================================= */}
-
-        <div className="workspace-mode-switch">
-
-          <button
-            type="button"
-            className={`workspace-toggle ${
-              workspaceMode ===
-              'USER'
-                ? 'active'
-                : ''
-            }`}
-            onClick={() =>
-              switchWorkspaceMode(
-                'USER'
-              )
-            }
-          >
-            <User size={17} />
-            <span>User</span>
-          </button>
-
-          <button
-            type="button"
-            className={`workspace-toggle ${
-              workspaceMode ===
-              'SECURITY'
-                ? 'active security-active'
-                : ''
-            }`}
-            onClick={() =>
-              switchWorkspaceMode(
-                'SECURITY'
-              )
-            }
-          >
-            <Shield size={17} />
-            <span>Security</span>
-          </button>
-
-        </div>
-
-        {/* =================================================
-            HEADER ACTIONS
-        ================================================= */}
-
-        <div className="phonepe-header-actions">
-
-          <button
-            type="button"
-            onClick={() =>
-              setShowQR(true)
-            }
-            title="My UPI QR"
-            aria-label="My UPI QR"
-          >
-            <QrCode size={21} />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              api.logout();
-              navigate('/');
-            }}
-            title="Logout"
-            aria-label="Logout"
-          >
-            <LogOut size={21} />
-          </button>
-
-        </div>
-
-      </header>
-
-      {/* ===================================================
-          BALANCE
-      =================================================== */}
-
-      <section className="balance-card">
-
-        <div className="balance-top">
-
-          <div>
-
-            <p className="balance-label">
-              Available Balance
-            </p>
-
-            <div className="balance-value">
-
-              {showBalance
-                ? formatDisplayINR(
-                    balance
-                  )
-                : '••••••••'}
-
-            </div>
-
-            <p className="balance-account">
-              {bank.name} |{' '}
-              {bank.account}
-            </p>
-
-          </div>
-
-          <button
-            type="button"
-            className="balance-eye"
-            onClick={() =>
-              setShowBalance(
-                !showBalance
-              )
-            }
-            aria-label={
-              showBalance
-                ? 'Hide balance'
-                : 'Show balance'
-            }
-          >
-            {showBalance ? (
-              <EyeOff size={19} />
-            ) : (
-              <Eye size={19} />
-            )}
-          </button>
-
-        </div>
-
-        <div className="balance-security">
-
-          <Shield size={16} />
-
-          <span>
-            Protected by SecurePay
-          </span>
-
-        </div>
-
-      </section>
-
-      {/* ===================================================
-          CONTENT
-      =================================================== */}
-
-      <main className="phonepe-main">
-
-        {activeTab ===
-          'home' &&
-          renderHome()}
-
-        {activeTab ===
-          'pay' &&
-          renderPay()}
-
-        {activeTab ===
-          'history' &&
-          renderHistory()}
-
-        {activeTab ===
-          'bank' &&
-          renderBank()}
-
-        {activeTab ===
-          'security' &&
-          renderSecurity()}
-
       </main>
-
-      {/* ===================================================
-          BOTTOM NAVIGATION
-      =================================================== */}
-
-      <nav className="phonepe-bottom-nav">
-
-        <button
-          type="button"
-          onClick={() =>
-            setActiveTab('home')
-          }
-          className={
-            activeTab ===
-            'home'
-              ? 'active'
-              : ''
-          }
-        >
-          <Home size={21} />
-          <span>Home</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            openPayFlow(
-              'TO_MOBILE'
-            )
-          }
-          className={
-            activeTab ===
-            'pay'
-              ? 'active'
-              : ''
-          }
-        >
-          <Send size={21} />
-          <span>Pay</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            setActiveTab(
-              'history'
-            )
-          }
-          className={
-            activeTab ===
-            'history'
-              ? 'active'
-              : ''
-          }
-        >
-          <History size={21} />
-          <span>History</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            setActiveTab(
-              'bank'
-            )
-          }
-          className={
-            activeTab ===
-            'bank'
-              ? 'active'
-              : ''
-          }
-        >
-          <Building size={21} />
-          <span>Bank</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            switchWorkspaceMode(
-              'SECURITY'
-            )
-          }
-          className={
-            activeTab ===
-            'security'
-              ? 'active'
-              : ''
-          }
-        >
-          <Shield size={21} />
-          <span>Security</span>
-        </button>
-
-      </nav>
 
       {/* ===================================================
           MY UPI QR MODAL
