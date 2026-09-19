@@ -28,6 +28,7 @@ import {
   Loader2,
   LogOut,
   UserCheck,
+  Activity,
 } from 'lucide-react';
 
 const RUPEE = '\u20B9';
