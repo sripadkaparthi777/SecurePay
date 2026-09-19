@@ -52,19 +52,26 @@ const Sidebar = ({ collapsed, setCollapsed, user }) => {
   ];
 
   return (
-    <aside className={`sidebar ${collapsed ? 'sidebar-collapsed' : ''}`}>
+    <aside className={`sidebar glass-card ${collapsed ? 'sidebar-collapsed' : ''}`} style={{ borderRadius: 0, borderTop: 0, borderBottom: 0, borderLeft: 0 }}>
       <div className="sidebar-brand">
         <div className="sidebar-logo">
-          <ShieldCheck size={24} />
+          <ShieldCheck size={24} color="#00f2ff" />
         </div>
 
         {!collapsed && (
           <div className="sidebar-brand-text">
-            <strong>SecurePay</strong>
-            <span>Security Platform</span>
+            <strong style={{ color: '#00f2ff' }}>SECUREPAY</strong>
+            <span style={{ fontSize: '10px', color: '#94a3b8' }}>API SECURITY PLATFORM</span>
           </div>
         )}
       </div>
+
+      {!collapsed && (
+        <div className="system-status-indicator" style={{ padding: '0 20px 20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className="dot pulse" style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 8px #10b981' }}></span>
+          <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#10b981' }}>SYSTEM ONLINE</span>
+        </div>
+      )}
 
       <nav className="sidebar-nav">
         {links.map((link) => {

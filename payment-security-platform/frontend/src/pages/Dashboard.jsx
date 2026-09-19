@@ -134,27 +134,56 @@ export default function Dashboard() {
       {/* =============================
           DASHBOARD HEADER
       ============================= */}
-      <div className="dashboard-header">
+      <div className="dashboard-header" style={{ marginBottom: '32px' }}>
         <div>
-          <h1>Dashboard</h1>
-          <p>Payment activity and API security monitoring</p>
+          <h1 style={{ margin: 0, fontSize: '24px', letterSpacing: '2px' }}>SECURITY COMMAND CENTER</h1>
+          <p style={{ color: '#94a3b8', margin: '4px 0', fontSize: '13px' }}>Live SOC Monitoring & API Vulnerability Analysis</p>
         </div>
 
-        <div className="mode-toggle">
+        <div className="mode-toggle" style={{ 
+          background: 'rgba(255,255,255,0.05)', 
+          padding: '4px', 
+          borderRadius: '8px',
+          border: '1px solid rgba(255,255,255,0.1)',
+          display: 'flex',
+          gap: '4px'
+        }}>
           {/* USER MODE */}
           <button
             className={mode === 'USER' ? 'active' : ''}
             onClick={() => setMode('USER')}
+            style={{ 
+              padding: '8px 16px', 
+              border: 'none', 
+              borderRadius: '6px', 
+              cursor: 'pointer', 
+              transition: 'all 0.3s',
+              background: mode === 'USER' ? '#3b82f6' : 'transparent',
+              color: mode === 'USER' ? 'white' : '#94a3b8',
+              fontWeight: 'bold',
+              fontSize: '12px'
+            }}
           >
-            User Mode
+            TESTER VIEW
           </button>
 
           {/* SECURITY MODE */}
           <button
             className={mode === 'SECURITY' ? 'active security' : ''}
             onClick={handleSecurityMode}
+            style={{ 
+              padding: '8px 16px', 
+              border: 'none', 
+              borderRadius: '6px', 
+              cursor: 'pointer', 
+              transition: 'all 0.3s',
+              background: mode === 'SECURITY' ? '#7c3aed' : 'transparent',
+              color: mode === 'SECURITY' ? 'white' : '#94a3b8',
+              fontWeight: 'bold',
+              fontSize: '12px'
+            }}
           >
-            Security Mode
+            SOC ANALYST
           </button>
         </div>
       </div>
@@ -164,16 +193,27 @@ export default function Dashboard() {
       ===================================================== */}
       {mode === 'USER' && (
         <>
-          {/* STATS */}
-          <div className="stats-grid">
-            <StatCard title="Overall Security Score" value="82/100" />
-            <StatCard title="APIs Scanned" value="12" />
-            <StatCard title="Vulnerabilities Found" value="5" />
-            <StatCard title="Critical Vulnerabilities" value="1" />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '24px', marginBottom: '24px' }}>
+            <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', marginBottom: 0 }}>
+              <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px' }}>APIs MONITORED</div>
+                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#00f2ff' }}>12</div>
+              </div>
+              <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px' }}>ACTIVE RISKS</div>
+                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#ef4444' }}>5</div>
+              </div>
+              <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px' }}>THREATS BLOCKED</div>
+                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#10b981' }}>128</div>
+              </div>
+              <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', letterSpacing: '1px' }}>SCAN COVERAGE</div>
+                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#3b82f6' }}>94%</div>
+              </div>
+            </div>
+            <SecurityScore score={82} />
           </div>
-
-          {/* SECURITY SCORE */}
-          <SecurityScore score={82} />
 
           {/* RECENT SECURITY SCANS */}
           <section className="dashboard-section">

@@ -1257,30 +1257,19 @@ export default function PhonePeDashboard({
   // =========================================================
 
   const renderPay = () => (
-    <section className="phonepe-card pay-section">
-
-      <div className="page-title-row">
-        <div>
-          <h2>
-            {paymentMode ===
-            'TO_SELF'
-              ? 'Self Transfer'
-              : 'Send Money'}
-          </h2>
-
-          <p>
-            {paymentMode ===
-            'TO_SELF'
-              ? 'Transfer funds to your own linked account / UPI ID'
-              : 'Make a secure mock payment to mobile or UPI'}
-          </p>
+    <div className="security-transaction-console" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+      <section className="glass-card pay-section">
+        <div className="page-title-row">
+          <div>
+            <h2 style={{ fontSize: '18px', letterSpacing: '1px' }}>
+              {paymentMode === 'TO_SELF' ? 'SECURE INTERNAL TRANSFER' : 'SECURE EXTERNAL GATEWAY'}
+            </h2>
+            <p style={{ color: '#94a3b8', fontSize: '12px', margin: '4px 0' }}>TESTING ENDPOINT: /api/payment/send</p>
+          </div>
+          <div className="secure-badge" style={{ color: '#10b981', border: '1px solid #10b981', padding: '4px 8px', borderRadius: '4px', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Lock size={12} /> ENCRYPTED
+          </div>
         </div>
-
-        <div className="secure-badge">
-          <Lock size={14} />
-          Secure
-        </div>
-      </div>
 
       <div className="transfer-mode-selector">
 
@@ -1538,25 +1527,38 @@ export default function PhonePeDashboard({
 
       </form>
 
-      <div className="security-notice">
-        <Shield size={18} />
+      </section>
 
-        <div>
-          <strong>
-            Security Monitoring Enabled
-          </strong>
-
-          <p>
-            Every payment can be analyzed later
-            in Security Mode for authentication,
-            authorization, input validation,
-            replay attacks and other API
-            security checks.
-          </p>
+      <section className="glass-card live-security-analysis">
+        <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', margin: '0 0 20px' }}>
+          <Activity size={18} /> LIVE SECURITY PIPELINE
+        </h3>
+        
+        <div className="pipeline-container" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {[
+            { label: 'Authentication', status: 'PASS', color: '#10b981' },
+            { label: 'Authorization', status: 'PASS', color: '#10b981' },
+            { label: 'Input Validation', status: 'PASS', color: '#10b981' },
+            { label: 'BOLA Check', status: 'WAITING', color: '#94a3b8' },
+            { label: 'Replay Protection', status: 'PASS', color: '#10b981' },
+            { label: 'Rate Limiting', status: 'PASS', color: '#10b981' },
+            { label: 'Risk Analysis (Gemini AI)', status: 'ANALYZING', color: '#00f2ff' }
+          ].map((step, i) => (
+            <div key={i} style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              padding: '12px', 
+              background: 'rgba(255,255,255,0.03)',
+              borderRadius: '6px',
+              borderLeft: `3px solid ${step.color}`
+            }}>
+              <span style={{ fontSize: '13px', color: '#e2e8f0' }}>{step.label}</span>
+              <span style={{ fontSize: '11px', fontWeight: 'bold', color: step.color }}>{step.status}</span>
+            </div>
+          ))}
         </div>
-      </div>
-
-    </section>
+      </section>
+    </div>
   );
 
   // =========================================================
