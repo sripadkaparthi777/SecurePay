@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { resetPaymentRateLimitForTests } from '../middleware/paymentRateLimit.js';
+import { resetSensitivePaymentFlowForTests } from '../middleware/sensitivePaymentFlowLimit.js';
 import { getDb } from '../database/db.js';
 
 const BASE_URL =
@@ -91,7 +92,9 @@ function makeResult({
 
 export class SecurityScanService {
   static async runSecurityScan() {
-      resetPaymentRateLimitForTests();
+    resetPaymentRateLimitForTests();
+    resetSensitivePaymentFlowForTests();
+
     const db = getDb();
 
     const scanId = `scn_${crypto.randomUUID()}`;
@@ -411,6 +414,7 @@ export class SecurityScanService {
     userAToken,
   }) {
     resetPaymentRateLimitForTests();
+    resetSensitivePaymentFlowForTests();
     const response = await httpRequest(
       '/api/payment/send',
       {
@@ -590,6 +594,7 @@ export class SecurityScanService {
     userAToken,
   }) {
     resetPaymentRateLimitForTests();
+    resetSensitivePaymentFlowForTests();
     const statuses = [];
 
     for (let i = 1; i <= 6; i++) {
